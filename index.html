@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="No-build Markdown wiki">
+  <title>Wiki</title>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="vendor/highlight-github-dark.min.css">
+  <link rel="stylesheet" href="vendor/katex/katex.min.css">
+  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="custom.css">
+</head>
+<body>
+  <header class="topbar">
+    <button class="icon-button sidebar-toggle" id="sidebar-toggle" type="button" aria-label="Toggle navigation" aria-expanded="false">☰</button>
+    <a class="brand" id="brand" href="#/home">Wiki</a>
+    <span class="document-kind">Documentation</span>
+  </header>
+
+  <div class="docs-shell">
+    <aside class="sidebar" id="sidebar">
+      <label class="filter">
+        <span>Filter pages</span>
+        <input id="nav-filter" type="search" placeholder="Type to filter…" autocomplete="off">
+      </label>
+      <nav class="tree" id="tree" aria-label="Documentation">
+        <div class="loading">Loading navigation…</div>
+      </nav>
+    </aside>
+
+    <main class="main" id="main">
+      <article class="article" id="article">
+        <div class="loading">Loading page…</div>
+      </article>
+      <nav class="page-pagination" id="page-pagination" aria-label="Adjacent pages"></nav>
+    </main>
+
+    <aside class="outline" id="outline" aria-label="On this page">
+      <strong>On this page</strong>
+      <nav id="outline-links"></nav>
+    </aside>
+  </div>
+
+  <dialog class="diagram-dialog" id="diagram-dialog" aria-labelledby="diagram-dialog-title">
+    <header class="diagram-dialog-header">
+      <strong id="diagram-dialog-title">Diagram viewer</strong>
+      <div class="diagram-toolbar" role="toolbar" aria-label="Diagram controls">
+        <button type="button" id="diagram-zoom-out" aria-label="Zoom out">−</button>
+        <output id="diagram-zoom-level" aria-live="polite">100%</output>
+        <button type="button" id="diagram-zoom-in" aria-label="Zoom in">+</button>
+        <button type="button" id="diagram-fit">Fit</button>
+        <button type="button" id="diagram-close">Close</button>
+      </div>
+    </header>
+    <div class="diagram-viewport" id="diagram-viewport" tabindex="0" aria-label="Expanded diagram. Drag to pan; use the mouse wheel or controls to zoom.">
+      <div class="diagram-canvas" id="diagram-canvas"></div>
+    </div>
+    <footer>Drag to pan · scroll to zoom · press 0 to fit · press Escape to close</footer>
+  </dialog>
+
+  <script src="vendor/js-yaml.min.js"></script>
+  <script src="vendor/marked.min.js"></script>
+  <script src="vendor/marked-footnote.min.js"></script>
+  <script src="vendor/highlight.min.js"></script>
+  <script src="vendor/katex/katex.min.js"></script>
+  <script src="vendor/marked-katex.min.js"></script>
+  <script src="vendor/mermaid.min.js"></script>
+  <script type="module" src="app.js"></script>
+</body>
+</html>

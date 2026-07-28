@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>Wiki</title>
+  <rect width="64" height="64" rx="12" fill="#0c0e12"/>
+  <path d="M12 17h9l5 29 6-20 6 20 5-29h9L43 51h-9l-2-8-2 8h-9z" fill="#d7ff5f"/>
+</svg>
