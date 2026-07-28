@@ -55,7 +55,7 @@ Use a marker blockquote at the beginning of a section or immediately before the 
 
 These exact labels receive strong visual treatment. Page status reports the page as a whole; markers distinguish accepted documentation from unresolved work inside it.
 
-Do not use a marker or prose note for a missing image. Embed a dedicated placeholder image whose contents describe the required replacement, as defined by the [[Wiki/Content Style Guide|required image placeholder rule]].
+Do not use a marker or prose note for a missing image. Embed a dedicated placeholder image whose contents describe the required replacement.
 
 ## Wiki links
 

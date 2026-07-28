@@ -68,7 +68,7 @@ The page title comes from frontmatter. Use level-two headings for major sections
 
 Use descriptive alternative text. Image paths currently resolve from the wiki root.
 
-When the final image is unavailable, embed a dedicated placeholder image at the intended path and put replacement instructions inside that image—not in the page. See the [[Wiki/Content Style Guide|required image placeholder rule]].
+When the final image is unavailable, embed a dedicated placeholder image at the intended path and put replacement instructions inside that image—not in the page.
 
 ```md
 ![Simple landscape used as a Markdown example](content/wiki/examples/wiki-image.svg)

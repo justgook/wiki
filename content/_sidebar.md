@@ -1,7 +1,6 @@
 ## Wiki guide
 
 - [[Wiki/Overview|Using this wiki]]
-  - [[Wiki/Content Style Guide|Content style guide]]
   - [[Wiki/Markdown Authoring|Markdown and navigation]]
   - [[Wiki/Markdown Cheat Sheet|Markdown cheat sheet]]
   - [[Wiki/Formulas|Formula examples]]
