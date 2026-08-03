@@ -38,6 +38,7 @@ These files may be symlinked from this repository when it is checked out as a Gi
 - `content/_sidebar.md` defines navigation using Markdown headings, lists, and wiki links.
 - `content/_config.md` requires the wiki title, description, and home page.
 - Wiki links use `[[Page Name]]` or `[[target/path|Visible label]]`.
+- In sidebar lists, wrap an item in `**...**` for bold accent styling or `*...*` for italic secondary styling (for example, `**[[Page|Label]]**`).
 - Formulas use KaTeX `$...$` or `$$...$$` delimiters.
 - Mermaid diagrams use fenced `mermaid` blocks.
 - Code includes use VuePress-compatible `@[code](path)` syntax and must stay inside `content/`.

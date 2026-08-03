@@ -10,7 +10,8 @@
   --faint: #626a79;
   --accent: #d7ff5f;
   --accent-ink: #182000;
-  --blue: #78a9ff;
+  --secondary: #78a9ff;
+  --blue: var(--secondary);
   --danger: #ff7b72;
   --font-sans: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --font-mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
@@ -86,6 +87,9 @@ a:hover { text-decoration: underline; }
 .tree > ul > li.category > ul a { color: var(--muted); font-size: .84rem; font-weight: 400; }
 .tree > ul > li.category > ul a:hover { color: var(--text); }
 .tree > ul > li.category > ul a.active { color: var(--accent); font-weight: 600; }
+/* Emphasis in navigation is semantic color: strong = accent, emphasis = secondary. */
+.tree strong, .tree strong a { color: var(--accent) !important; font-weight: 700 !important; }
+.tree em, .tree em a { color: var(--secondary) !important; font-style: italic; }
 .category-toggle { grid-column: 2; grid-row: 1; display: grid; place-items: center; width: 28px; height: 28px; padding: 0; border: 0; border-radius: 5px; background: transparent; color: var(--faint); cursor: pointer; }
 .category-toggle:hover { background: var(--surface-raised); color: var(--text); }
 .category-toggle span { display: block; width: 7px; height: 7px; border-right: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor; transform: rotate(45deg); transform-origin: 50% 50%; transition: transform .15s ease; }
