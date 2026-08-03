@@ -17,6 +17,7 @@ A local HTTP server is required because browsers do not allow `fetch()` to read 
 Keep the runtime files together at the served wiki root:
 
 - `app.js`
+- `markdown.js`
 - `index.html`
 - `style.css`
 - `vendor/`

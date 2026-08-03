@@ -3,6 +3,8 @@
  * Markdown files are the source of truth; there is no generated index or build step.
  */
 
+import { prepareMarkdown, tokenizeWikilink } from './markdown.js';
+
 const elements = {
   article: requiredElement('#article'),
   brand: requiredElement('#brand'),
@@ -113,16 +115,7 @@ function setupMarkdown() {
       name: 'wikilink',
       level: 'inline',
       start(source) { return source.indexOf('[['); },
-      tokenizer(source) {
-        const match = /^\[\[([^\]|\n]+)(?:\|([^\]\n]+))?\]\]/.exec(source);
-        if (!match) return undefined;
-        return {
-          type: 'wikilink',
-          raw: match[0],
-          target: match[1].trim(),
-          label: (match[2] || match[1]).trim(),
-        };
-      },
+      tokenizer: tokenizeWikilink,
       renderer(token) {
         const slug = pageSlug(token.target);
         return `<a class="wiki-link" data-page="${escapeHTML(slug)}" href="#/${escapeHTML(slug)}">${escapeHTML(token.label)}</a>`;
@@ -132,7 +125,7 @@ function setupMarkdown() {
 }
 
 function renderMarkdown(markdown) {
-  return marked.parse(markdown);
+  return marked.parse(prepareMarkdown(markdown));
 }
 
 function highlightSource(source, language) {
