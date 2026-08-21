@@ -40,13 +40,21 @@ cp "$engine_dir/index.html" "$engine_dir/app.js" "$engine_dir/style.css" \
 cp -R "$engine_dir/vendor" "$stage/vendor"
 
 # A content repository is public input. Repository metadata, local tooling, and
-# site overrides do not belong under /content in the published site.
-tar -C "$source_dir" \
-    --exclude='.?*' \
-    --exclude='./Makefile' \
-    --exclude='./custom.css' \
-    --exclude='./favicon.svg' \
-    -cf - . | tar -C "$stage/content" -xf -
+# site overrides do not belong under /content in the published site. Copying
+# entries explicitly avoids incompatible BSD/GNU tar exclusion semantics.
+for entry in "$source_dir"/*; do
+    name=${entry##*/}
+    [[ "$entry" == "$output_dir" ]] && continue
+    case "$name" in
+        Makefile|custom.css|favicon.svg) continue ;;
+    esac
+    cp -R "$entry" "$stage/content/"
+done
+find "$stage/content" -depth -name '.*' -exec rm -rf -- {} +
+if [[ ! -f "$stage/content/_config.md" || ! -f "$stage/content/_sidebar.md" ]]; then
+    echo "Wiki content was not copied into the generated site" >&2
+    exit 1
+fi
 
 [[ -f "$source_dir/custom.css" ]] && cp "$source_dir/custom.css" "$stage/custom.css"
 [[ -f "$source_dir/favicon.svg" ]] && cp "$source_dir/favicon.svg" "$stage/favicon.svg"
