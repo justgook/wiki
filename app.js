@@ -301,7 +301,7 @@ function setupMermaid() {
 
     mermaid.initialize({
         startOnLoad: false,
-        securityLevel: "strict",
+        securityLevel: "loose",
         theme: "base",
         fontFamily,
         themeVariables: {
