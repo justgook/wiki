@@ -1,5 +1,5 @@
-name: Build Markdown wiki
-description: Combine this wiki engine with a repository of Markdown content.
+name: Build content wiki
+description: Combine this wiki engine with a repository of source content.
 author: justgook
 
 inputs:

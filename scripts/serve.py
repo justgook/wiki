@@ -57,6 +57,8 @@ class WikiHandler(BaseHTTPRequestHandler):
 
             size = file.stat().st_size
             content_type = mimetypes.guess_type(str(file))[0] or "application/octet-stream"
+            if file.suffix == ".po":
+                content_type = "text/x-gettext-translation"
             if content_type.startswith("text/") or file.suffix in (".js", ".json", ".md", ".svg"):
                 content_type += "; charset=utf-8"
             self.send_response(200)

@@ -1,12 +1,13 @@
 # Wiki
 
-A no-build, offline-capable Markdown wiki. Markdown stays the source of truth: the browser runtime loads and renders it directly, with no framework, package install, generated page index, or CDN required. This repository includes the runtime and a [deployed authoring guide](https://justgook.github.io/wiki/) that doubles as its demo.
+A no-build, offline-capable content wiki. Markdown is the default source format, and project extensions can render additional text formats directly in the browser. Source files remain the source of truth: there is no framework, package install, generated page index, or CDN requirement. This repository includes the runtime and a [deployed authoring guide](https://justgook.github.io/wiki/) that doubles as its demo.
 
 The engine is designed for project wikis, living design documents, and knowledge bases that should remain easy to read and edit as plain files. A reusable GitHub Action combines the engine with any content repository for publishing, while `make serve` provides a live local preview.
 
 ## What it provides
 
 - Markdown pages rendered directly in the browser.
+- Project-defined content renderers for additional text formats.
 - Hash-based navigation with shareable page and section links.
 - A nested, collapsible sidebar defined in Markdown, including page filtering and adjacent-page navigation.
 - `[[Wiki links]]` with optional paths and visible labels.
@@ -23,7 +24,7 @@ There is deliberately no static-site compilation step. `make build` and the GitH
 
 ### 1. Publish a Markdown repository with GitHub Actions
 
-Keep only Markdown and wiki assets in your content repository. The reusable action adds the engine and assembles the publishable site; the surrounding workflow deploys it through GitHub Pages. The content repository never needs to vendor or track the runtime.
+Keep source content, project renderers, and wiki assets in your content repository. The reusable action adds the engine and assembles the publishable site; the surrounding workflow deploys it through GitHub Pages. The content repository never needs to vendor or track the runtime.
 
 **Best for:** a maintained project wiki with automatic publishing on every push.
 
@@ -56,7 +57,52 @@ Makefile         # optional local preview command
 .github/workflows/pages.yml
 ```
 
-Every page requires YAML frontmatter with a `title` and a status: `accepted`, `in-progress`, `todo`, or `reference`. `_sidebar.md` defines navigation; `_config.md` defines the wiki title, description, and home page.
+Every Markdown page requires YAML frontmatter with a `title` and a status: `accepted`, `in-progress`, `todo`, or `reference`. `_sidebar.md` defines navigation; `_config.md` defines the wiki title, description, home page, and optional content extensions.
+
+## Custom content renderers
+
+A content repository can render non-Markdown text formats without compiling them to Markdown first. Register trusted project-local JavaScript modules in `_config.md`:
+
+```yaml
+extensions:
+  - wiki-extensions/gettext.js
+```
+
+An extension module declares the file extensions it handles and returns page metadata plus rendered HTML:
+
+```js
+export default {
+    extensions: [".po"],
+    render({ source, path, query, helpers }) {
+        return {
+            data: {
+                title: "Translation catalogue",
+                summary: path,
+                eyebrow: "Game text",
+                status: "in-progress",
+            },
+            html: `<pre>${helpers.escapeHTML(source)}</pre>`,
+            className: "translation-catalogue",
+        }
+    },
+}
+```
+
+Renderer modules are trusted content and run in the browser with the same privileges as the wiki. Paths must remain inside the content repository. Each renderer must declare at least one extension, and two renderers cannot claim the same extension.
+
+Link directly to an extended file, preserving its extension:
+
+```md
+[[Game Text/Dialogue.po|Dialogue]]
+```
+
+Query parameters are passed to the renderer as `URLSearchParams`, allowing extension-specific deep links such as:
+
+```text
+#/game-text/dialogue.po?entry=dialogue.m01.com01
+```
+
+The render context provides `escapeHTML`, `escapeAttribute`, `pageURL`, and `renderMarkdown` helpers. Use `escapeAttribute` for values interpolated inside HTML attributes. A renderer may also define `afterRender({ article, path, query, helpers })` for behavior such as scrolling to an extension-specific entry. Project-specific renderer styles belong in the content repository's `custom.css`.
 
 ## Publish from another repository
 

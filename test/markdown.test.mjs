@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import test from 'node:test';
 
-import { prepareMarkdown, tokenizeWikilink } from '../markdown.js';
+import { prepareMarkdown, tokenizeWikilink } from '../app.js';
 
 const require = createRequire(import.meta.url);
 const marked = require('../vendor/marked.min.js');

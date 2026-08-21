@@ -74,6 +74,23 @@ Ordinary Markdown links continue to work for external URLs:
 [Mermaid documentation](https://mermaid.js.org/)
 ```
 
+### Extended content links
+
+Projects may register trusted browser-side renderers for additional text formats in `_config.md`:
+
+```yaml
+extensions:
+  - wiki-extensions/gettext.js
+```
+
+Keep the registered extension in links to those files:
+
+```md
+[[Game Text/Dialogue.po|Dialogue]]
+```
+
+Unlike Markdown page targets, extended file paths are preserved rather than converted to kebab case. Extension modules run as trusted project code and must remain inside the content directory. See the repository README for the renderer API.
+
 ## Direct section links
 
 Every level-two and level-three heading appears under **On this page**. Selecting one updates the URL and scrolls to the heading, so the URL can be copied to link directly to that section:

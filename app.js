@@ -1,9 +1,197 @@
 /*
  * Game wiki.
- * Markdown files are the source of truth; there is no generated index or build step.
+ * Source files are rendered in the browser; there is no generated index or page compilation step.
  */
 
-const elements = {
+/* ========================================================================== *
+ * ROUTING
+ * ========================================================================== */
+
+function splitTarget(target) {
+    const value = String(target).trim()
+    const queryStart = value.indexOf("?")
+    return {
+        path: queryStart === -1 ? value : value.slice(0, queryStart),
+        query: queryStart === -1 ? "" : value.slice(queryStart + 1),
+    }
+}
+
+function validateSegments(path, description) {
+    const segments = path.split("/")
+    if (segments.some((segment) => !segment || segment === "." || segment === "..")) {
+        throw new Error(`Invalid ${description}: ${path}`)
+    }
+    return segments
+}
+
+function pageSlug(target) {
+    const { path } = splitTarget(target)
+    const segments = validateSegments(path.replace(/\.md$/i, ""), "wiki page target")
+    return segments
+        .map((segment) =>
+            segment
+                .toLowerCase()
+                .replace(/['’]/g, "")
+                .replace(/[^a-z0-9]+/g, "-")
+                .replace(/^-+|-+$/g, ""),
+        )
+        .join("/")
+}
+
+function fileExtension(path) {
+    const filename = path.split("/").at(-1)
+    const match = /^(?:.+)(\.[a-z0-9][a-z0-9_-]*)$/i.exec(filename)
+    return match ? match[1].toLowerCase() : ""
+}
+
+function routePath(target, registeredExtensions = new Set()) {
+    const { path } = splitTarget(target)
+    if (!path) throw new Error("Wiki target cannot be empty")
+    const extension = fileExtension(path)
+    if (!extension || extension === ".md" || !registeredExtensions.has(extension)) return pageSlug(path)
+    validateSegments(path, "content file target")
+    if (path.includes("\\") || path.includes("%")) throw new Error(`Invalid content file target: ${path}`)
+    return path
+}
+
+function pageURL(target, registeredExtensions = new Set()) {
+    const { query } = splitTarget(target)
+    const path = routePath(target, registeredExtensions)
+        .split("/")
+        .map((segment) => encodeURIComponent(segment))
+        .join("/")
+    return `#/${path}${query ? `?${query}` : ""}`
+}
+
+function contentRequest(route, registeredExtensions) {
+    const extension = fileExtension(route)
+    const rendererExtension = extension || ".md"
+    if (!registeredExtensions.has(rendererExtension)) {
+        throw new Error(`No content renderer is registered for ${rendererExtension}`)
+    }
+    return {
+        contentPath: extension ? route : `${route}.md`,
+        extension: rendererExtension,
+    }
+}
+
+function safeContentModulePath(path) {
+    const value = String(path).trim()
+    if (!value || value.startsWith("/") || /^[a-z][a-z0-9+.-]*:/i.test(value) || value.includes("\\") || value.includes("%")) {
+        throw new Error(`Extension module path must be relative: ${path}`)
+    }
+    validateSegments(value, "extension module path")
+    if (!/\.m?js$/i.test(value)) throw new Error(`Extension module must be JavaScript: ${path}`)
+    return value
+}
+
+/* ========================================================================== *
+ * CONTENT RENDERERS
+ * ========================================================================== */
+
+function normalizeRendererExtension(value) {
+    const extension = String(value).trim().toLowerCase()
+    if (!/^\.[a-z0-9][a-z0-9_-]*$/.test(extension)) {
+        throw new Error(`Invalid content renderer extension: ${value}`)
+    }
+    return extension
+}
+
+function createRendererRegistry() {
+    const renderers = new Map()
+
+    return {
+        extensions() {
+            return new Set(renderers.keys())
+        },
+        register(renderer, source = "content renderer") {
+            if (!renderer || typeof renderer !== "object" || Array.isArray(renderer)) {
+                throw new Error(`${source} must export a renderer object`)
+            }
+            if (!Array.isArray(renderer.extensions) || renderer.extensions.length === 0) {
+                throw new Error(`${source} must declare at least one extension`)
+            }
+            if (typeof renderer.render !== "function") {
+                throw new Error(`${source} must provide a render function`)
+            }
+            for (const rawExtension of renderer.extensions) {
+                const extension = normalizeRendererExtension(rawExtension)
+                if (renderers.has(extension)) {
+                    throw new Error(`A content renderer is already registered for ${extension}`)
+                }
+                renderers.set(extension, renderer)
+            }
+        },
+        renderer(extension) {
+            const renderer = renderers.get(normalizeRendererExtension(extension))
+            if (!renderer) throw new Error(`No content renderer is registered for ${extension}`)
+            return renderer
+        },
+    }
+}
+
+/* ========================================================================== *
+ * MARKDOWN PREPARATION
+ * ========================================================================== */
+
+function isTableDelimiter(line) {
+    let value = line.trim()
+    if (!value.includes("|")) return false
+    if (value.startsWith("|")) value = value.slice(1)
+    if (value.endsWith("|")) value = value.slice(0, -1)
+    return value.split("|").every((cell) => /^\s*:?-+:?\s*$/.test(cell))
+}
+
+function protectWikilinks(line) {
+    let output = ""
+    let cursor = 0
+    while (cursor < line.length) {
+        if (line.startsWith("[[", cursor)) {
+            const end = line.indexOf("]]", cursor + 2)
+            if (end !== -1) {
+                const content = line.slice(cursor + 2, end)
+                const separator = content.indexOf("|")
+                if (separator > 0 && separator < content.length - 1) {
+                    output += `[[${content.replace(/(?<!\\)\|/g, "\\|")}]]`
+                    cursor = end + 2
+                    continue
+                }
+            }
+        }
+        output += line[cursor]
+        cursor += 1
+    }
+    return output
+}
+
+function prepareMarkdown(markdown) {
+    const lines = markdown.split("\n")
+    for (let delimiter = 1; delimiter < lines.length; delimiter += 1) {
+        if (!isTableDelimiter(lines[delimiter])) continue
+        lines[delimiter - 1] = protectWikilinks(lines[delimiter - 1])
+        for (let row = delimiter + 1; row < lines.length && lines[row].trim(); row += 1) {
+            lines[row] = protectWikilinks(lines[row])
+        }
+    }
+    return lines.join("\n")
+}
+
+function tokenizeWikilink(source) {
+    const match = /^\[\[((?:(?!\\?\|)[^\]\n])+)(?:\\?\|([^\]\n]+))?\]\]/.exec(source)
+    if (!match) return undefined
+    return {
+        type: "wikilink",
+        raw: match[0],
+        target: match[1].trim(),
+        label: (match[2] || match[1]).replace(/\\\|/g, "|").trim(),
+    }
+}
+
+/* ========================================================================== *
+ * APPLICATION STATE
+ * ========================================================================== */
+
+const elements = typeof document === "undefined" ? {} : {
     article: requiredElement("#article"),
     brand: requiredElement("#brand"),
     diagramCanvas: requiredElement("#diagram-canvas"),
@@ -27,6 +215,8 @@ const elements = {
 let config
 let pageLinks = []
 let currentPage = ""
+let currentContentQuery = ""
+let routeRenderID = 0
 let diagramView
 let diagramCloneID = 0
 
@@ -35,6 +225,7 @@ const DIAGRAM_MAX_SCALE = 8
 const DIAGRAM_ZOOM_STEP = 1.25
 
 const PAGE_STATUSES = new Set(["accepted", "in-progress", "todo", "reference"])
+const contentRenderers = createRendererRegistry()
 const DOCUMENT_MARKERS = new Map([
     ["Accepted", "accepted"],
     ["In progress", "in-progress"],
@@ -53,9 +244,17 @@ function requiredElement(selector) {
 }
 
 function escapeHTML(value) {
+    const string = String(value)
+    if (typeof document === "undefined") {
+        return string.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;")
+    }
     const node = document.createElement("span")
-    node.textContent = String(value)
+    node.textContent = string
     return node.innerHTML
+}
+
+function escapeAttribute(value) {
+    return escapeHTML(value).replaceAll('"', "&quot;").replaceAll("'", "&#39;")
 }
 
 function parseFrontmatter(raw, source) {
@@ -72,26 +271,6 @@ async function fetchText(path) {
     const response = await fetch(path)
     if (!response.ok) throw new Error(`HTTP ${response.status}: ${path}`)
     return response.text()
-}
-
-function pageSlug(target) {
-    const segments = target.trim().replace(/\.md$/i, "").split("/")
-    if (segments.some((segment) => !segment || segment === "." || segment === "..")) {
-        throw new Error(`Invalid wiki page target: ${target}`)
-    }
-    return segments
-        .map((segment) =>
-            segment
-                .toLowerCase()
-                .replace(/['’]/g, "")
-                .replace(/[^a-z0-9]+/g, "-")
-                .replace(/^-+|-+$/g, ""),
-        )
-        .join("/")
-}
-
-function pageURL(target) {
-    return `#/${pageSlug(target)}`
 }
 
 function setupMarkdown() {
@@ -121,8 +300,9 @@ function setupMarkdown() {
                 },
                 tokenizer: tokenizeWikilink,
                 renderer(token) {
-                    const slug = pageSlug(token.target)
-                    return `<a class="wiki-link" data-page="${escapeHTML(slug)}" href="#/${escapeHTML(slug)}">${escapeHTML(token.label)}</a>`
+                    const extensions = contentRenderers.extensions()
+                    const route = routePath(token.target, extensions)
+                    return `<a class="wiki-link" data-page="${escapeAttribute(route)}" href="${escapeAttribute(pageURL(token.target, extensions))}">${escapeHTML(token.label)}</a>`
                 },
             },
         ],
@@ -131,6 +311,68 @@ function setupMarkdown() {
 
 function renderMarkdown(markdown) {
     return marked.parse(prepareMarkdown(markdown))
+}
+
+function setupContentRenderers() {
+    contentRenderers.register({
+        extensions: [".md"],
+        async render({ source, path }) {
+            const { data, content } = parseFrontmatter(source, path)
+            const expandedContent = await expandCodeIncludes(content, path)
+            return {
+                data,
+                html: renderMarkdown(expandedContent),
+                className: "prose",
+            }
+        },
+    }, "built-in Markdown renderer")
+}
+
+async function loadContentExtensions() {
+    if (config.extensions === undefined) return
+    if (!Array.isArray(config.extensions) || config.extensions.some((path) => typeof path !== "string")) {
+        throw new Error("content/_config.md extensions must be an array of module paths")
+    }
+
+    for (const configuredPath of config.extensions) {
+        const path = safeContentModulePath(configuredPath)
+        const url = new URL(`content/${path}`, location.href)
+        const module = await import(url.href)
+        contentRenderers.register(module.default, `content/${path}`)
+    }
+}
+
+function validateRenderedPage(result, source) {
+    if (!result || typeof result !== "object" || Array.isArray(result)) {
+        throw new Error(`Content renderer must return an object: ${source}`)
+    }
+    const data = result.data
+    if (!data || typeof data !== "object" || Array.isArray(data)) {
+        throw new Error(`Content renderer must return page data: ${source}`)
+    }
+    if (typeof data.title !== "string" || !data.title.trim()) {
+        throw new Error(`${source} requires a title`)
+    }
+    if (!PAGE_STATUSES.has(data.status)) {
+        throw new Error(`${source} requires status: accepted, in-progress, todo, or reference`)
+    }
+    if (typeof result.html !== "string") {
+        throw new Error(`Content renderer must return HTML: ${source}`)
+    }
+    if (result.className !== undefined && (typeof result.className !== "string" || !/^[a-z0-9 _-]*$/i.test(result.className))) {
+        throw new Error(`Content renderer className must contain only CSS class names: ${source}`)
+    }
+    return result
+}
+
+function rendererHelpers() {
+    const extensions = contentRenderers.extensions()
+    return Object.freeze({
+        escapeAttribute,
+        escapeHTML,
+        pageURL: (target) => pageURL(target, extensions),
+        renderMarkdown,
+    })
 }
 
 function highlightSource(source, language) {
@@ -594,7 +836,7 @@ async function loadConfig() {
     }
     config = data
     elements.brand.textContent = config.title
-    elements.brand.href = pageURL(config.home)
+    elements.brand.href = pageURL(config.home, contentRenderers.extensions())
     document.title = config.title
     document.querySelector('meta[name="description"]').content = config.description
 }
@@ -653,9 +895,14 @@ function routeState() {
     const queryStart = raw.indexOf("?")
     const rawPage = queryStart === -1 ? raw : raw.slice(0, queryStart)
     const rawQuery = queryStart === -1 ? "" : raw.slice(queryStart + 1)
+    const query = new URLSearchParams(rawQuery)
+    const contentQuery = new URLSearchParams(query)
+    contentQuery.delete("section")
     return {
-        page: pageSlug(decodeURIComponent(rawPage || config.home)),
-        section: new URLSearchParams(rawQuery).get("section"),
+        page: routePath(decodeURIComponent(rawPage || config.home), contentRenderers.extensions()),
+        query,
+        contentQuery: contentQuery.toString(),
+        section: query.get("section"),
     }
 }
 
@@ -664,21 +911,39 @@ function routePage() {
 }
 
 async function renderRoute() {
+    const renderID = ++routeRenderID
     if (elements.diagramDialog.open) elements.diagramDialog.close()
-    currentPage = routePage()
+    const state = routeState()
+    currentPage = state.page
+    currentContentQuery = state.contentQuery
     closeSidebar()
     elements.article.innerHTML = '<div class="loading">Loading page…</div>'
 
-    const raw = await fetchText(`content/${currentPage}.md`)
-    const { data, content } = parseFrontmatter(raw, `content/${currentPage}.md`)
-    if (typeof data.title !== "string" || !data.title.trim()) {
-        throw new Error(`content/${currentPage}.md requires a title in frontmatter`)
+    const request = contentRequest(currentPage, contentRenderers.extensions())
+    const renderer = contentRenderers.renderer(request.extension)
+    const sourcePath = `content/${request.contentPath}`
+    let source
+    let rendered
+    try {
+        source = await fetchText(sourcePath)
+        if (renderID !== routeRenderID) return
+        rendered = validateRenderedPage(
+            await renderer.render({
+                source,
+                path: sourcePath,
+                query: state.query,
+                helpers: rendererHelpers(),
+            }),
+            sourcePath,
+        )
+    } catch (error) {
+        if (renderID !== routeRenderID) return
+        throw error
     }
-    if (!PAGE_STATUSES.has(data.status)) {
-        throw new Error(`content/${currentPage}.md requires status: accepted, in-progress, todo, or reference`)
-    }
+    if (renderID !== routeRenderID) return
+    const { data } = rendered
+    const className = rendered.className ? ` ${rendered.className}` : ""
 
-    const expandedContent = await expandCodeIncludes(content, `content/${currentPage}.md`)
     elements.article.innerHTML = `
     <header class="article-header">
       ${data.eyebrow ? `<span class="eyebrow">${escapeHTML(data.eyebrow)}</span>` : ""}
@@ -686,7 +951,7 @@ async function renderRoute() {
       ${data.summary ? `<p class="summary">${escapeHTML(data.summary)}</p>` : ""}
       <span class="status status-${data.status}">${escapeHTML(data.status)}</span>
     </header>
-    <div class="prose">${renderMarkdown(expandedContent)}</div>`
+    <div class="content-renderer${className}">${rendered.html}</div>`
 
     setupDocumentMarkers()
     await renderDiagrams()
@@ -696,6 +961,14 @@ async function renderRoute() {
     buildOutline()
     buildPagination()
     scrollToRouteLocation("auto")
+    if (typeof renderer.afterRender === "function") {
+        await renderer.afterRender({
+            article: elements.article,
+            path: sourcePath,
+            query: state.query,
+            helpers: rendererHelpers(),
+        })
+    }
 }
 
 function setupDocumentMarkers() {
@@ -749,7 +1022,9 @@ function headingID(text, usedIDs, index) {
 }
 
 function sectionURL(section) {
-    return `#/${currentPage}?section=${encodeURIComponent(section)}`
+    const query = new URLSearchParams(routeState().query)
+    query.set("section", section)
+    return `#/${currentPage}?${query}`
 }
 
 function buildOutline() {
@@ -791,7 +1066,8 @@ function scrollToRouteLocation(behavior) {
 }
 
 async function navigateRoute() {
-    if (routePage() === currentPage) {
+    const state = routeState()
+    if (state.page === currentPage && state.contentQuery === currentContentQuery) {
         scrollToRouteLocation("smooth")
         return
     }
@@ -887,76 +1163,29 @@ function renderFatal(error) {
     </div>`
 }
 
-function isTableDelimiter(line) {
-    let value = line.trim()
-    if (!value.includes("|")) return false
-    if (value.startsWith("|")) value = value.slice(1)
-    if (value.endsWith("|")) value = value.slice(0, -1)
-    return value.split("|").every((cell) => /^\s*:?-+:?\s*$/.test(cell))
-}
-
-function protectWikilinks(line) {
-    let output = ""
-    let cursor = 0
-
-    while (cursor < line.length) {
-        if (line.startsWith("[[", cursor)) {
-            const end = line.indexOf("]]", cursor + 2)
-            if (end !== -1) {
-                const content = line.slice(cursor + 2, end)
-                const separator = content.indexOf("|")
-                if (separator > 0 && separator < content.length - 1) {
-                    output += `[[${content.replace(/(?<!\\)\|/g, "\\|")}]]`
-                    cursor = end + 2
-                    continue
-                }
-            }
-        }
-
-        output += line[cursor]
-        cursor += 1
-    }
-
-    return output
-}
-
-function prepareMarkdown(markdown) {
-    const lines = markdown.split("\n")
-
-    for (let delimiter = 1; delimiter < lines.length; delimiter += 1) {
-        if (!isTableDelimiter(lines[delimiter])) continue
-
-        lines[delimiter - 1] = protectWikilinks(lines[delimiter - 1])
-        for (let row = delimiter + 1; row < lines.length && lines[row].trim(); row += 1) {
-            lines[row] = protectWikilinks(lines[row])
-        }
-    }
-
-    return lines.join("\n")
-}
-
-function tokenizeWikilink(source) {
-    const match = /^\[\[((?:(?!\\?\|)[^\]\n])+)(?:\\?\|([^\]\n]+))?\]\]/.exec(source)
-    if (!match) return undefined
-
-    return {
-        type: "wikilink",
-        raw: match[0],
-        target: match[1].trim(),
-        label: (match[2] || match[1]).replace(/\\\|/g, "|").trim(),
-    }
-}
-
 async function init() {
     setupMarkdown()
+    setupContentRenderers()
     setupMermaid()
     setupDiagramViewer()
     setupSidebar()
     setupFilter()
     await loadConfig()
+    await loadContentExtensions()
     await loadNavigation()
     await renderRoute()
     window.addEventListener("hashchange", () => navigateRoute().catch(renderFatal))
 }
 
-init().catch(renderFatal)
+if (typeof document !== "undefined") init().catch(renderFatal)
+
+export {
+    contentRequest,
+    createRendererRegistry,
+    escapeAttribute,
+    pageURL,
+    prepareMarkdown,
+    routePath,
+    safeContentModulePath,
+    tokenizeWikilink,
+}
