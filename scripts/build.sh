@@ -42,7 +42,7 @@ cp -R "$engine_dir/vendor" "$stage/vendor"
 # A content repository is public input. Repository metadata, local tooling, and
 # site overrides do not belong under /content in the published site.
 tar -C "$source_dir" \
-    --exclude='*/.*' \
+    --exclude='.?*' \
     --exclude='./Makefile' \
     --exclude='./custom.css' \
     --exclude='./favicon.svg' \
