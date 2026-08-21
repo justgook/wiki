@@ -79,7 +79,7 @@ Ordinary Markdown links continue to work for external URLs:
 Every level-two and level-three heading appears under **On this page**. Selecting one updates the URL and scrolls to the heading, so the URL can be copied to link directly to that section:
 
 ```text
-#/wiki/markdown-authoring?section=sidebar-structure
+#/markdown-authoring?section=sidebar-structure
 ```
 
 Heading links remain stable while the heading text stays the same. Duplicate heading names receive `-2`, `-3`, and later suffixes.
@@ -114,7 +114,7 @@ const phase = 'planning';
 ```
 ````
 
-See the [[Wiki/Markdown Cheat Sheet|Markdown cheat sheet]] for more rendered examples. For diagrams and external source files, see [[Wiki/Diagrams]] and [[Wiki/Code Includes]].
+See the [[Markdown Cheat Sheet|Markdown cheat sheet]] for more rendered examples. For diagrams and external source files, see [[Diagrams]] and [[Code Includes]].
 
 ## Generated navigation behavior
 

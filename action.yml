@@ -1,0 +1,34 @@
+name: Build Markdown wiki
+description: Combine this wiki engine with a repository of Markdown content.
+author: justgook
+
+inputs:
+  source:
+    description: Directory containing _config.md, _sidebar.md, and wiki content.
+    required: false
+    default: .
+  output:
+    description: Directory in which to write the publishable static site.
+    required: false
+    default: .wiki-dist
+outputs:
+  path:
+    description: Absolute path to the generated static site.
+    value: ${{ steps.build.outputs.path }}
+
+runs:
+  using: composite
+  steps:
+    - name: Build wiki
+      id: build
+      shell: bash
+      env:
+        WIKI_SOURCE: ${{ inputs.source }}
+        WIKI_OUTPUT: ${{ inputs.output }}
+      run: |
+        "$GITHUB_ACTION_PATH/scripts/build.sh" "$WIKI_SOURCE" "$WIKI_OUTPUT"
+        echo "path=$(cd "$WIKI_OUTPUT" && pwd -P)" >> "$GITHUB_OUTPUT"
+
+branding:
+  icon: book-open
+  color: gray-dark

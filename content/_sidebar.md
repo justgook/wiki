@@ -1,8 +1,8 @@
 ## Wiki guide
 
-- [[Wiki/Overview|Using this wiki]]
-  - [[Wiki/Markdown Authoring|Markdown and navigation]]
-  - [[Wiki/Markdown Cheat Sheet|Markdown cheat sheet]]
-  - [[Wiki/Formulas|Formula examples]]
-  - [[Wiki/Diagrams|Diagram examples]]
-  - [[Wiki/Code Includes|Code include examples]]
+- [[Overview|Using this wiki]]
+  - [[Markdown Authoring|Markdown and navigation]]
+  - [[Markdown Cheat Sheet|Markdown cheat sheet]]
+  - [[Formulas|Formula examples]]
+  - [[Diagrams|Diagram examples]]
+  - [[Code Includes|Code include examples]]

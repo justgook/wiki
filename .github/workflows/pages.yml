@@ -25,10 +25,15 @@ jobs:
         uses: actions/checkout@v4
       - name: Configure Pages
         uses: actions/configure-pages@v5
+      - name: Build wiki
+        id: wiki
+        uses: ./
+        with:
+          source: content
       - name: Upload static site
         uses: actions/upload-pages-artifact@v3
         with:
-          path: .
+          path: ${{ steps.wiki.outputs.path }}
       - name: Deploy
         id: deployment
         uses: actions/deploy-pages@v4

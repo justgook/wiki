@@ -71,10 +71,10 @@ Use descriptive alternative text. Image paths currently resolve from the wiki ro
 When the final image is unavailable, embed a dedicated placeholder image at the intended path and put replacement instructions inside that image—not in the page.
 
 ```md
-![Simple landscape used as a Markdown example](content/wiki/examples/wiki-image.svg)
+![Simple landscape used as a Markdown example](content/examples/wiki-image.svg)
 ```
 
-![Simple landscape used as a Markdown example](content/wiki/examples/wiki-image.svg)
+![Simple landscape used as a Markdown example](content/examples/wiki-image.svg)
 
 ## Tables
 
@@ -122,7 +122,7 @@ $$
 D = B\left(1 + \frac{L}{10}\right)
 $$
 
-See [[Wiki/Formulas|Formula examples]] for more patterns.
+See [[Formulas|Formula examples]] for more patterns.
 
 ## Footnotes
 
@@ -140,9 +140,9 @@ The prototype supports this conclusion.[^prototype]
 
 ## Wiki extensions
 
-- [[Wiki/Markdown Authoring|Markdown and navigation]] — pages, frontmatter, wiki links, and sidebar categories.
-- [[Wiki/Formulas|Formula examples]] — LaTeX-style formulas rendered with KaTeX.
-- [[Wiki/Diagrams|Diagram examples]] — Mermaid diagrams inside Markdown.
-- [[Wiki/Code Includes|Code include examples]] — include source files, select ranges, and highlight lines.
+- [[Markdown Authoring|Markdown and navigation]] — pages, frontmatter, wiki links, and sidebar categories.
+- [[Formulas|Formula examples]] — LaTeX-style formulas rendered with KaTeX.
+- [[Diagrams|Diagram examples]] — Mermaid diagrams inside Markdown.
+- [[Code Includes|Code include examples]] — include source files, select ranges, and highlight lines.
 
 For less common standard syntax, see the [Markdown Guide cheat sheet](https://www.markdownguide.org/cheat-sheet/).
