@@ -28,7 +28,7 @@ def safe_path(root, relative):
 def requested_file(pathname):
     if pathname == "/content" or pathname.startswith("/content/"):
         return safe_path(CONTENT_ROOT, pathname[len("/content"):])
-    if pathname in ("/custom.css", "/favicon.svg"):
+    if pathname in ("/custom.css", "/custom.js", "/favicon.svg"):
         override = CONTENT_ROOT / pathname[1:]
         if override.is_file():
             return override

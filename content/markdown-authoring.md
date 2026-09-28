@@ -26,12 +26,14 @@ Quote YAML values containing a colon followed by a space:
 summary: "Loop structure: observe, decide, act, and respond."
 ```
 
-Every page must use one of four statuses:
+By default, every page must use one of four statuses:
 
 - `accepted` — canonical enough to build against;
 - `in-progress` — contains useful direction and unresolved parts;
 - `todo` — required but not designed yet;
 - `reference` — stable authoring or supporting material.
+
+A content repository may add statuses with `registerStatus("under-review")` or replace the defaults with `setStatuses(["draft", "published"])` from an optional root `custom.js` default export. New status colors can be set in `custom.css` using `.status-under-review`. See the README for the full site JavaScript example.
 
 ## Document markers
 

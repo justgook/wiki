@@ -41,8 +41,8 @@ function requestedFile(pathname) {
     if (pathname === "/content" || pathname.startsWith("/content/")) {
         return safePath(contentRoot, pathname.slice("/content".length).replace(/^\/+/, ""))
     }
-    if (pathname === "/custom.css" && existsSync(resolve(contentRoot, "custom.css"))) {
-        return resolve(contentRoot, "custom.css")
+    if ((pathname === "/custom.css" || pathname === "/custom.js") && existsSync(resolve(contentRoot, pathname.slice(1)))) {
+        return resolve(contentRoot, pathname.slice(1))
     }
     if (pathname === "/favicon.svg" && existsSync(resolve(contentRoot, "favicon.svg"))) {
         return resolve(contentRoot, "favicon.svg")

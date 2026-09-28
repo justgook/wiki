@@ -15,7 +15,7 @@ The engine is designed for project wikis, living design documents, and knowledge
 - Visual markers for accepted decisions, open work, questions, missing evidence, images, diagrams, and examples.
 - Syntax-highlighted fenced code blocks and source-file includes.
 - KaTeX formulas and expandable Mermaid diagrams.
-- Custom theming through `custom.css` and `favicon.svg`.
+- Custom theming through `custom.css` and `favicon.svg`, and optional site behavior through `custom.js`.
 - Vendored browser libraries, so a built wiki does not depend on external services.
 
 There is deliberately no static-site compilation step. `make build` and the GitHub Action only assemble the engine and public content into a publishable directory; Markdown is still rendered at runtime.
@@ -52,12 +52,26 @@ _sidebar.md
 home.md
 images/
 custom.css       # optional site override
+custom.js        # optional site JavaScript override
 favicon.svg      # optional site override
 Makefile         # optional local preview command
 .github/workflows/pages.yml
 ```
 
-Every Markdown page requires YAML frontmatter with a `title` and a status: `accepted`, `in-progress`, `todo`, or `reference`. `_sidebar.md` defines navigation; `_config.md` defines the wiki title, description, home page, and optional content extensions.
+Every Markdown page requires YAML frontmatter with a `title` and a status: `accepted`, `in-progress`, `todo`, or `reference` by default. `_sidebar.md` defines navigation; `_config.md` defines the wiki title, description, home page, and optional content extensions.
+
+### Optional site JavaScript and statuses
+
+Put `custom.js` at the content repository root to run site-wide JavaScript. It is loaded after the engine module starts but before the first page renders; if absent, the engine's empty default file is used. Export a default configure function:
+
+```js
+export default function configure({ registerStatus, setStatuses }) {
+    registerStatus("under-review") // add to the four defaults
+    // Or replace all defaults: setStatuses(["draft", "published"])
+}
+```
+
+All pages (including pages from custom renderers) must use one of the resulting statuses. Status names must be lowercase ASCII letters/numbers separated by hyphens; the engine renders them as text and as a `status-NAME` CSS class. Style new statuses in `custom.css`, for example `.status-under-review { color: purple; }`. The configure function may be async. Like content renderer modules, `custom.js` is trusted code with full browser privileges; use only scripts you control.
 
 ## Custom content renderers
 
@@ -152,7 +166,7 @@ The action accepts:
 - `source` — content directory, default `.`
 - `output` — generated site directory, default `.wiki-dist`
 
-It validates `_config.md` and `_sidebar.md`, copies public content, applies optional `custom.css` and `favicon.svg`, and returns the absolute generated directory as the `path` output. Dotfiles, `.github/`, `Makefile`, and local wiki folders are not published as content.
+It validates `_config.md` and `_sidebar.md`, copies public content, applies optional `custom.css`, `custom.js`, and `favicon.svg`, and returns the absolute generated directory as the `path` output. Dotfiles, `.github/`, `Makefile`, and local wiki folders are not published as content.
 
 ## Preview locally
 
@@ -162,7 +176,7 @@ Copy this repository's `Makefile` into a content repository, then run:
 make serve
 ```
 
-On first use it downloads the engine into `.wiki-engine/`, then serves the current content directly at <http://localhost:8080>. Markdown, images, `custom.css`, and `favicon.svg` remain live: refresh the browser to see edits without rebuilding or restarting the server. It uses Bun, Node.js, Python 3, or Python—whichever is available in that order.
+On first use it downloads the engine into `.wiki-engine/`, then serves the current content directly at <http://localhost:8080>. Markdown, images, `custom.css`, `custom.js`, and `favicon.svg` remain live: refresh the browser to see edits without rebuilding or restarting the server. It uses Bun, Node.js, Python 3, or Python—whichever is available in that order.
 
 To assemble the same publishable directory produced by the GitHub Action, run:
 
@@ -195,7 +209,7 @@ For a repository like `justgook/imprint-zero`:
 
 1. Move everything under `content/` to the repository root.
 2. Remove the `core` submodule, `.gitmodules`, and engine symlinks (`app.js`, `index.html`, `style.css`, and `vendor`).
-3. Keep `custom.css` and `favicon.svg` at the root.
+3. Keep `custom.css`, optional `custom.js`, and `favicon.svg` at the root.
 4. Copy this `Makefile`, add the two ignored directories above, and use the publishing workflow shown above.
 
 ## Authoring guide

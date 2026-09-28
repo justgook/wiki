@@ -4,6 +4,7 @@ import test from "node:test"
 import {
     contentRequest,
     createRendererRegistry,
+    createStatusRegistry,
     escapeAttribute,
     pageURL,
     routePath,
@@ -59,6 +60,20 @@ test("validates project extension module paths", () => {
     assert.equal(safeContentModulePath("wiki-extensions/gettext.js"), "wiki-extensions/gettext.js")
     assert.throws(() => safeContentModulePath("../gettext.js"), /Invalid extension module path/)
     assert.throws(() => safeContentModulePath("https://example.com/gettext.js"), /must be relative/)
+})
+
+test("status customization adds or replaces validated status slugs", () => {
+    const statuses = createStatusRegistry()
+    assert.equal(statuses.has("accepted"), true)
+    statuses.register("under-review")
+    assert.equal(statuses.has("under-review"), true)
+    assert.throws(() => statuses.register('x" onclick="bad'), /Invalid page status/)
+    assert.throws(() => statuses.replace(["valid", "Not valid"]), /Invalid page status/)
+    assert.equal(statuses.has("accepted"), true) // invalid replacements are atomic
+    assert.throws(() => statuses.replace([]), /non-empty array/)
+    statuses.replace(["draft", "published"])
+    assert.deepEqual(statuses.list(), ["draft", "published"])
+    assert.equal(statuses.has("accepted"), false)
 })
 
 test("registers one renderer per extension", () => {

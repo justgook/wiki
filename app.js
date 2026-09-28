@@ -224,7 +224,30 @@ const DIAGRAM_MIN_SCALE = 0.1
 const DIAGRAM_MAX_SCALE = 8
 const DIAGRAM_ZOOM_STEP = 1.25
 
-const PAGE_STATUSES = new Set(["accepted", "in-progress", "todo", "reference"])
+function createStatusRegistry() {
+    let statuses = new Set(["accepted", "in-progress", "todo", "reference"])
+
+    function validate(status) {
+        if (typeof status !== "string" || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(status)) {
+            throw new Error(`Invalid page status: ${status} (use lowercase letters, numbers, and hyphens)`)
+        }
+        return status
+    }
+
+    return {
+        has(status) { return statuses.has(status) },
+        list() { return [...statuses] },
+        register(status) { statuses.add(validate(status)) },
+        replace(values) {
+            if (!Array.isArray(values) || values.length === 0) {
+                throw new Error("Page statuses must be a non-empty array")
+            }
+            statuses = new Set(values.map(validate))
+        },
+    }
+}
+
+const pageStatuses = createStatusRegistry()
 const contentRenderers = createRendererRegistry()
 const DOCUMENT_MARKERS = new Map([
     ["Accepted", "accepted"],
@@ -328,6 +351,16 @@ function setupContentRenderers() {
     }, "built-in Markdown renderer")
 }
 
+async function loadSiteCustomization() {
+    const module = await import("./custom.js")
+    if (module.default === undefined) return
+    if (typeof module.default !== "function") throw new Error("custom.js must export a default configure function")
+    await module.default({
+        registerStatus: (status) => pageStatuses.register(status),
+        setStatuses: (statuses) => pageStatuses.replace(statuses),
+    })
+}
+
 async function loadContentExtensions() {
     if (config.extensions === undefined) return
     if (!Array.isArray(config.extensions) || config.extensions.some((path) => typeof path !== "string")) {
@@ -353,8 +386,8 @@ function validateRenderedPage(result, source) {
     if (typeof data.title !== "string" || !data.title.trim()) {
         throw new Error(`${source} requires a title`)
     }
-    if (!PAGE_STATUSES.has(data.status)) {
-        throw new Error(`${source} requires status: accepted, in-progress, todo, or reference`)
+    if (!pageStatuses.has(data.status)) {
+        throw new Error(`${source} requires status: ${pageStatuses.list().join(", ")}`)
     }
     if (typeof result.html !== "string") {
         throw new Error(`Content renderer must return HTML: ${source}`)
@@ -1171,6 +1204,7 @@ async function init() {
     setupSidebar()
     setupFilter()
     await loadConfig()
+    await loadSiteCustomization()
     await loadContentExtensions()
     await loadNavigation()
     await renderRoute()
@@ -1182,6 +1216,7 @@ if (typeof document !== "undefined") init().catch(renderFatal)
 export {
     contentRequest,
     createRendererRegistry,
+    createStatusRegistry,
     escapeAttribute,
     pageURL,
     prepareMarkdown,

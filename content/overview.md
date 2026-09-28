@@ -46,7 +46,7 @@ favicon.svg
 images/
 ```
 
-`_config.md` defines the wiki title, description, and home page. `_sidebar.md` is the navigation source of truth. All other Markdown pages and assets are project content. `custom.css` and `favicon.svg` are optional branding overrides.
+`_config.md` defines the wiki title, description, and home page. `_sidebar.md` is the navigation source of truth. All other Markdown pages and assets are project content. `custom.css`, `custom.js`, and `favicon.svg` are optional site overrides.
 
 The `content/` directory in this engine repository intentionally follows that shape. It is a complete example content root containing configuration, navigation, customization, pages, and example assets.
 
@@ -68,7 +68,7 @@ Use `make build` only when you want to inspect or publish the assembled static d
 - Hash-based navigation with shareable page and section links.
 - Nested, collapsible sidebar categories with filtering and adjacent-page navigation.
 - `[[Wiki links]]` with optional paths and visible labels.
-- YAML frontmatter with `accepted`, `in-progress`, `todo`, and `reference` statuses.
+- YAML frontmatter with `accepted`, `in-progress`, `todo`, and `reference` statuses by default; optional `custom.js` can add or replace statuses.
 - Visual document markers for decisions, open work, questions, evidence, and missing artifacts.
 - Syntax-highlighted code, source-file includes, KaTeX formulas, and expandable Mermaid diagrams.
 - Vendored browser libraries with no package install or CDN dependency.

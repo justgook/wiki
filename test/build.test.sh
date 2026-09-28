@@ -25,6 +25,7 @@ status: accepted
 Content copied successfully.
 EOF
 printf '/* fixture override */\n' > "$fixture/custom.css"
+printf '/* fixture script */\n' > "$fixture/custom.js"
 printf 'do not publish\n' > "$fixture/.env"
 mkdir -p "$fixture/pages/nested" "$fixture/wiki-extensions" "$fixture/game-text" "$fixture/dist/content"
 printf 'public page\n' > "$fixture/pages/reference.md"
@@ -43,9 +44,15 @@ test -f "$fixture/dist/content/pages/reference.md"
 test -f "$fixture/dist/content/wiki-extensions/example.js"
 test -f "$fixture/dist/content/game-text/example.po"
 grep -q 'fixture override' "$fixture/dist/custom.css"
+grep -q 'fixture script' "$fixture/dist/custom.js"
 test ! -e "$fixture/dist/content/.env"
 test ! -e "$fixture/dist/content/pages/nested/.secret"
 test ! -e "$fixture/dist/content/custom.css"
+test ! -e "$fixture/dist/content/custom.js"
+rm "$fixture/custom.js"
+"$engine_dir/scripts/build.sh" "$fixture" "$fixture/dist"
+test -f "$fixture/dist/custom.js"
+! grep -q 'fixture script' "$fixture/dist/custom.js"
 test ! -e "$fixture/dist/content/dist"
 
 echo "build integration test passed"
