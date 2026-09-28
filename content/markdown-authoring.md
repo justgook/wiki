@@ -101,7 +101,14 @@ Every level-two and level-three heading appears under **On this page**. Selectin
 #/markdown-authoring?section=sidebar-structure
 ```
 
-Heading links remain stable while the heading text stays the same. Duplicate heading names receive `-2`, `-3`, and later suffixes.
+Link to a heading on another page with `#` after the page target. The wiki turns that fragment into the same `?section=` route used by **On this page**:
+
+```md
+[[Markdown Authoring#Sidebar structure|Sidebar structure]]
+[[Markdown Authoring?section=sidebar-structure|Sidebar structure]]
+```
+
+Both links open `#/markdown-authoring?section=sidebar-structure`. If the target also has renderer query parameters, put them before the fragment (for example, `[[Game Text/Dialogue.po?entry=example#Notes|Notes]]`). A fragment takes precedence over an existing `section` query parameter. Heading links remain stable while the heading text stays the same. Duplicate heading names receive `-2`, `-3`, and later suffixes.
 
 ## Sidebar structure
 

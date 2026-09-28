@@ -16,6 +16,20 @@ test("keeps extensionless Markdown routes compatible", () => {
     assert.equal(pageURL("Gameplay/Core Loop"), "#/gameplay/core-loop")
 })
 
+test("wiki heading fragments resolve to section routes without changing the requested file", () => {
+    const extensions = new Set([".md", ".po"])
+    assert.equal(routePath("Content Style Guide#mission-room-graphs", extensions), "content-style-guide")
+    assert.equal(pageURL("Content Style Guide#mission-room-graphs", extensions), "#/content-style-guide?section=mission-room-graphs")
+    assert.deepEqual(contentRequest(routePath("Content Style Guide#mission-room-graphs", extensions), extensions), {
+        contentPath: "content-style-guide.md",
+        extension: ".md",
+    })
+    assert.equal(pageURL("Characters/ROOK#Moves and Animations", extensions), "#/characters/rook?section=moves-and-animations")
+    assert.equal(pageURL("Characters/ROOK?section=old#Appearance", extensions), "#/characters/rook?section=appearance")
+    assert.equal(pageURL("game-text/dialogue.po?entry=dialogue.m01.com01#Translator Notes", extensions),
+        "#/game-text/dialogue.po?entry=dialogue.m01.com01&section=translator-notes")
+})
+
 test("preserves registered content extensions and query parameters", () => {
     const target = "game-text/dialogue.po?entry=dialogue.m01.com01"
     const extensions = new Set([".md", ".po"])

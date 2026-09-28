@@ -16,6 +16,16 @@ function splitTarget(target) {
     }
 }
 
+function splitPageTarget(target) {
+    const value = String(target).trim()
+    const fragmentStart = value.indexOf("#")
+    const address = fragmentStart === -1 ? value : value.slice(0, fragmentStart)
+    return {
+        ...splitTarget(address),
+        section: fragmentStart === -1 ? "" : value.slice(fragmentStart + 1),
+    }
+}
+
 function validateSegments(path, description) {
     const segments = path.split("/")
     if (segments.some((segment) => !segment || segment === "." || segment === "..")) {
@@ -45,7 +55,7 @@ function fileExtension(path) {
 }
 
 function routePath(target, registeredExtensions = new Set()) {
-    const { path } = splitTarget(target)
+    const { path } = splitPageTarget(target)
     if (!path) throw new Error("Wiki target cannot be empty")
     const extension = fileExtension(path)
     if (!extension || extension === ".md" || !registeredExtensions.has(extension)) return pageSlug(path)
@@ -55,12 +65,15 @@ function routePath(target, registeredExtensions = new Set()) {
 }
 
 function pageURL(target, registeredExtensions = new Set()) {
-    const { query } = splitTarget(target)
+    const { query, section } = splitPageTarget(target)
     const path = routePath(target, registeredExtensions)
         .split("/")
         .map((segment) => encodeURIComponent(segment))
         .join("/")
-    return `#/${path}${query ? `?${query}` : ""}`
+    if (!section) return `#/${path}${query ? `?${query}` : ""}`
+    const parameters = new URLSearchParams(query)
+    parameters.set("section", pageSlug(section))
+    return `#/${path}?${parameters}`
 }
 
 function contentRequest(route, registeredExtensions) {
