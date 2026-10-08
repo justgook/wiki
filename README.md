@@ -73,6 +73,10 @@ export default function configure({ registerStatus, setStatuses }) {
 
 All pages (including pages from custom renderers) must use one of the resulting statuses. Status names must be lowercase ASCII letters/numbers separated by hyphens; the engine renders them as text and as a `status-NAME` CSS class. Style new statuses in `custom.css`, for example `.status-under-review { color: purple; }`. The configure function may be async. Like content renderer modules, `custom.js` is trusted code with full browser privileges; use only scripts you control.
 
+## Theme tokens
+
+Override design tokens in your content repository's `custom.css`; no engine edits needed. [THEMING.md](THEMING.md) lists every token: UI, syntax highlighting, Mermaid diagrams, chart palettes, fonts, and layout. Set `color-scheme: light` or `dark` alongside your colors. Browser-supported CSS colors—including `rgb()`, short hex, and `color-mix()`—are resolved for Mermaid only on diagram pages. Custom chart/schema renderers can consume the same CSS variables.
+
 ## Custom content renderers
 
 A content repository can render non-Markdown text formats without compiling them to Markdown first. Register trusted project-local JavaScript modules in `_config.md`:
@@ -216,6 +220,20 @@ For a repository like `justgook/imprint-zero`:
 
 The [deployed Wiki guide](https://justgook.github.io/wiki/) documents page metadata, navigation, `[[Wiki links]]`, Markdown syntax, KaTeX formulas, Mermaid diagrams, and VuePress-compatible `@[code](path)` includes. It is built from this repository's `content/` directory using the same action available to consuming repositories.
 
+## Prepare a release
+
+Requires Git, Node.js, and authenticated [GitHub CLI](https://cli.github.com/) (`gh auth login`). Commit changes first; run from a branch, not detached HEAD.
+
+```sh
+./scripts/prepare-release.sh --dry-run       # Preview next minor version; no changes
+./scripts/prepare-release.sh v1.3.0         # Explicit version; existing HEAD tag can be reused
+./scripts/prepare-release.sh                # Next minor from latest local stable tag
+```
+
+Fetch tags first if your checkout is stale (`git fetch origin --tags`). The script runs tests/build, creates an annotated tag, atomically pushes the current branch plus tag to `origin`, then creates a **draft** GitHub release with generated notes. Review the draft before publishing. Existing releases remain unchanged; dirty trees and conflicting tags are rejected. No commits, force pushes, or automatic publication. If GitHub draft creation fails after pushing, rerun with the same explicit version.
+
 ## Engine development
 
 The runtime has no package install or compilation step. `scripts/build.sh content .wiki-dist` assembles a site. Third-party browser libraries and their licenses are kept under `vendor/` so generated wikis work without CDN dependencies.
+
+Checks: `node --test test/*.test.mjs`, `bash test/build.test.sh`, and `bash test/release.test.sh`. Browser color regressions: run `node scripts/serve.mjs content 8080`, then open `http://localhost:8080/test/theming.browser.html` (expect `PASS` in the title).

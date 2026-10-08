@@ -13,6 +13,50 @@
   --secondary: #78a9ff;
   --blue: var(--secondary);
   --danger: #ff7b72;
+  --prose-text: #c9cdd6;
+  --warning: #f5a742;
+  --evidence: #c792ea;
+  --backdrop: #050608e6;
+  --sidebar-shadow: #0008;
+  --focus-ring: var(--secondary);
+  --selection-bg: var(--accent);
+  --selection-text: var(--accent-ink);
+
+  --syntax-bg: var(--surface);
+  --syntax-text: var(--text);
+  --syntax-comment: #8b949e;
+  --syntax-keyword: #ff7b72;
+  --syntax-title: #d2a8ff;
+  --syntax-literal: #79c0ff;
+  --syntax-string: #a5d6ff;
+  --syntax-symbol: #ffa657;
+  --syntax-tag: #7ee787;
+  --syntax-section: #1f6feb;
+  --syntax-bullet: #f2cc60;
+  --syntax-addition-text: #aff5b4;
+  --syntax-addition-bg: #033a16;
+  --syntax-deletion-text: #ffdcd7;
+  --syntax-deletion-bg: #67060c;
+
+  --diagram-bg: var(--surface);
+  --diagram-node-bg: var(--surface-raised);
+  --diagram-border: var(--border-strong);
+  --diagram-text: var(--text);
+  --diagram-muted: var(--muted);
+  --diagram-faint: var(--faint);
+  --diagram-line: var(--muted);
+  --diagram-accent: var(--accent);
+  --diagram-accent-ink: var(--accent-ink);
+  --diagram-font-size: 15px;
+  --chart-1: var(--accent);
+  --chart-2: var(--secondary);
+  --chart-3: var(--evidence);
+  --chart-4: var(--warning);
+  --chart-5: var(--danger);
+  --chart-6: #7ee787;
+  --chart-7: #ffa657;
+  --chart-8: #a5d6ff;
+
   --font-sans: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --font-mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
   --topbar-height: 56px;
@@ -28,6 +72,8 @@ button, input { font: inherit; }
 a { color: var(--blue); text-decoration: none; }
 a:hover { text-decoration: underline; }
 [hidden] { display: none !important; }
+::selection { background: var(--selection-bg); color: var(--selection-text); }
+:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 3px; }
 
 .topbar {
   position: fixed;
@@ -104,10 +150,10 @@ a:hover { text-decoration: underline; }
 .status { display: inline-flex; padding: 3px 8px; border: 1px solid var(--border-strong); border-radius: 999px; color: var(--muted); font-family: var(--font-mono); font-size: .7rem; text-transform: uppercase; }
 .status-accepted { border-color: color-mix(in srgb, var(--accent) 45%, var(--border)); color: var(--accent); }
 .status-in-progress { border-color: color-mix(in srgb, var(--blue) 45%, var(--border)); color: var(--blue); }
-.status-todo { border-color: color-mix(in srgb, #f5a742 45%, var(--border)); color: #f5a742; }
+.status-todo { border-color: color-mix(in srgb, var(--warning) 45%, var(--border)); color: var(--warning); }
 .status-reference { color: var(--muted); }
 
-.prose { color: #c9cdd6; font-size: 1rem; line-height: 1.75; }
+.prose { color: var(--prose-text); font-size: 1rem; line-height: 1.75; }
 .prose h2, .prose h3, .prose h4 { color: var(--text); line-height: 1.25; scroll-margin-top: 80px; }
 .prose h2 { margin: 48px 0 14px; padding-bottom: 9px; border-bottom: 1px solid var(--border); font-size: 1.55rem; letter-spacing: -.025em; }
 .prose h3 { margin: 32px 0 10px; font-size: 1.15rem; }
@@ -122,12 +168,12 @@ a:hover { text-decoration: underline; }
 .prose .document-marker strong:first-child { color: var(--marker-color); font-family: var(--font-mono); font-size: .78em; letter-spacing: .04em; text-transform: uppercase; }
 .prose .marker-accepted { --marker-color: var(--accent); }
 .prose .marker-in-progress { --marker-color: var(--blue); }
-.prose .marker-todo, .prose .marker-open-question { --marker-color: #f5a742; }
-.prose .marker-needs-evidence, .prose .marker-needs-image, .prose .marker-needs-diagram, .prose .marker-needs-example { --marker-color: #c792ea; }
+.prose .marker-todo, .prose .marker-open-question { --marker-color: var(--warning); }
+.prose .marker-needs-evidence, .prose .marker-needs-image, .prose .marker-needs-diagram, .prose .marker-needs-example { --marker-color: var(--evidence); }
 .prose code { padding: .12em .35em; border: 1px solid var(--border); border-radius: 4px; background: var(--surface-raised); color: var(--text); font-family: var(--font-mono); font-size: .86em; }
-.prose pre { overflow: auto; padding: 18px 20px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); line-height: 1.55; }
+.prose pre { overflow: auto; padding: 18px 20px; border: 1px solid var(--border); border-radius: 8px; background: var(--syntax-bg); line-height: 1.55; }
 .prose pre code { padding: 0; border: 0; background: none; }
-.prose .code-include { margin: 24px 0; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; background: var(--surface); }
+.prose .code-include { margin: 24px 0; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; background: var(--syntax-bg); }
 .prose .code-include figcaption { display: flex; justify-content: space-between; gap: 16px; padding: 9px 14px; border-bottom: 1px solid var(--border); color: var(--faint); font: .72rem var(--font-mono); }
 .prose .code-include figcaption code { padding: 0; border: 0; background: none; color: var(--muted); }
 .prose .code-include pre { margin: 0; padding: 12px 0; border: 0; border-radius: 0; }
@@ -135,7 +181,7 @@ a:hover { text-decoration: underline; }
 .prose .code-line::before { content: attr(data-line); display: inline-block; width: 4.25em; margin-right: 18px; padding-right: 12px; border-right: 1px solid var(--border); color: var(--faint); text-align: right; user-select: none; }
 .prose .code-line.is-highlighted { background: color-mix(in srgb, var(--accent) 13%, transparent); box-shadow: inset 3px 0 var(--accent); }
 .prose .code-line.is-highlighted::before { color: var(--accent); }
-.prose .mermaid { position: relative; display: grid; place-items: center; overflow-x: auto; margin: 28px 0; padding: 24px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); }
+.prose .mermaid { position: relative; display: grid; place-items: center; overflow-x: auto; margin: 28px 0; padding: 24px; border: 1px solid var(--diagram-border); border-radius: 8px; background: var(--diagram-bg); }
 .prose .mermaid svg { max-width: 100%; height: auto; }
 .diagram-expand { position: absolute; top: 9px; right: 9px; padding: 5px 9px; border: 1px solid var(--border-strong); border-radius: 5px; background: color-mix(in srgb, var(--surface-raised) 92%, transparent); color: var(--muted); font: 700 .68rem var(--font-mono); text-transform: uppercase; letter-spacing: .05em; cursor: pointer; }
 .diagram-expand:hover, .diagram-expand:focus-visible { border-color: var(--accent); color: var(--accent); }
@@ -156,7 +202,7 @@ a:hover { text-decoration: underline; }
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
 .diagram-viewer-open { overflow: hidden; }
 .diagram-dialog { inset: 0; width: 100vw; max-width: none; height: 100dvh; max-height: none; margin: 0; padding: 0; border: 0; background: var(--bg); color: var(--text); }
-.diagram-dialog::backdrop { background: #050608e6; }
+.diagram-dialog::backdrop { background: var(--backdrop); }
 .diagram-dialog[open] { display: grid; grid-template-rows: auto minmax(0, 1fr) auto; }
 .diagram-dialog-header { z-index: 1; display: flex; align-items: center; justify-content: space-between; gap: 20px; min-height: 58px; padding: 9px 16px 9px 20px; border-bottom: 1px solid var(--border); background: var(--surface); }
 .diagram-dialog-header > strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -187,6 +233,27 @@ a:hover { text-decoration: underline; }
 .fatal-error { display: grid; gap: 14px; padding: 20px; border: 1px solid color-mix(in srgb, var(--danger) 50%, var(--border)); background: color-mix(in srgb, var(--danger) 8%, var(--surface)); }
 .fatal-error code { color: var(--danger); white-space: pre-wrap; }
 
+/* Highlight.js scopes; colors are public theme tokens, not a fixed vendor theme. */
+pre code.hljs { display: block; overflow-x: auto; }
+.hljs { color: var(--syntax-text); background: var(--syntax-bg); }
+.prose pre code.hljs { color: var(--syntax-text); }
+.hljs-doctag, .hljs-keyword, .hljs-meta .hljs-keyword, .hljs-template-tag,
+.hljs-template-variable, .hljs-type, .hljs-variable.language_ { color: var(--syntax-keyword); }
+.hljs-title, .hljs-title.class_, .hljs-title.class_.inherited__, .hljs-title.function_ { color: var(--syntax-title); }
+.hljs-attr, .hljs-attribute, .hljs-literal, .hljs-meta, .hljs-number, .hljs-operator,
+.hljs-selector-attr, .hljs-selector-class, .hljs-selector-id, .hljs-variable { color: var(--syntax-literal); }
+.hljs-meta .hljs-string, .hljs-regexp, .hljs-string { color: var(--syntax-string); }
+.hljs-built_in, .hljs-symbol { color: var(--syntax-symbol); }
+.hljs-code, .hljs-comment, .hljs-formula { color: var(--syntax-comment); }
+.hljs-name, .hljs-quote, .hljs-selector-pseudo, .hljs-selector-tag { color: var(--syntax-tag); }
+.hljs-subst { color: var(--syntax-text); }
+.hljs-section { color: var(--syntax-section); font-weight: 700; }
+.hljs-bullet { color: var(--syntax-bullet); }
+.hljs-emphasis { color: var(--syntax-text); font-style: italic; }
+.hljs-strong { color: var(--syntax-text); font-weight: 700; }
+.hljs-addition { color: var(--syntax-addition-text); background: var(--syntax-addition-bg); }
+.hljs-deletion { color: var(--syntax-deletion-text); background: var(--syntax-deletion-bg); }
+
 @media (max-width: 1080px) {
   :root { --outline-width: 0px; }
   .outline { display: none; }
@@ -197,7 +264,7 @@ a:hover { text-decoration: underline; }
   .document-kind { display: none; }
   .docs-shell { display: block; }
   .sidebar { position: fixed; z-index: 30; top: var(--topbar-height); bottom: 0; left: 0; width: min(88vw, 320px); padding: 20px 18px 80px; transform: translateX(-105%); transition: transform .18s ease; border-right: 1px solid var(--border); background: var(--surface); }
-  .sidebar-open .sidebar { transform: translateX(0); box-shadow: 15px 0 50px #0008; }
+  .sidebar-open .sidebar { transform: translateX(0); box-shadow: 15px 0 50px var(--sidebar-shadow); }
   .main { padding: 42px 20px 110px; }
   .article-header h1 { font-size: 2.25rem; }
   .diagram-dialog-header { align-items: flex-start; gap: 8px; padding: 9px 10px; }

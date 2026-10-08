@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<title>Theme browser tests</title>
+<link rel="stylesheet" href="../style.css">
+<style>body { padding: 24px; } :root { --test-color: #123456; }</style>
+<pre id="results">Running…</pre>
+<script type="module">
+import { resolveCSSColor, readDiagramTheme } from '../theme.js'
+const results = []
+const equal = (actual, expected, name) => {
+    if (actual !== expected) throw new Error(`${name}: ${actual} != ${expected}`)
+    results.push(name)
+}
+try {
+    for (const [value, expected] of [
+        ['#abc', '#aabbcc'], ['rgb(12, 34, 56)', '#0c2238'],
+        ['hsl(0, 100%, 50%)', '#ff0000'], ['rebeccapurple', '#663399'],
+        ['color-mix(in srgb, white 50%, black)', '#808080'],
+        ['var(--test-color)', '#123456'], ['oklch(100% 0 0)', '#ffffff'],
+    ]) equal(resolveCSSColor(value), expected, value)
+    equal(resolveCSSColor('rgb(255 0 0 / 50%)', '#ffffff'), '#ff7f7f', 'alpha composition')
+    equal(resolveCSSColor('transparent', '#123456'), '#123456', 'transparent composition')
+    let rejected = false
+    try { resolveCSSColor('definitely-not-a-color') } catch { rejected = true }
+    equal(rejected, true, 'invalid colors rejected')
+    document.documentElement.style.colorScheme = 'light'
+    document.documentElement.style.setProperty('--surface', 'color-mix(in srgb, white 90%, blue)')
+    document.documentElement.style.setProperty('--chart-1', 'rebeccapurple')
+    const theme = readDiagramTheme()
+    equal(theme.darkMode, false, 'light Mermaid mode')
+    equal(theme.colors.surface, '#e6e6ff', 'computed diagram surface')
+    equal(theme.palette[0], '#663399', 'categorical palette')
+    // Check rendered syntax consumes tokens without vendor selector overrides.
+    document.documentElement.style.setProperty('--syntax-keyword', '#123456')
+    const span = document.createElement('span')
+    span.className = 'hljs-keyword'
+    document.body.append(span)
+    equal(getComputedStyle(span).color, 'rgb(18, 52, 86)', 'syntax token')
+    // Exercise actual wiki initialization/navigation, not just color helpers.
+    const frame = document.createElement('iframe')
+    frame.style.cssText = 'position:absolute;left:-10000px;width:1200px;height:900px'
+    frame.src = '../#/overview'
+    document.body.append(frame)
+    const waitFor = async predicate => {
+        for (let i = 0; i < 300; i++) {
+            const fatal = frame.contentDocument?.querySelector('.fatal-error')
+            if (fatal) throw new Error(fatal.textContent)
+            if (predicate()) return
+            await new Promise(resolve => setTimeout(resolve, 100))
+        }
+        throw new Error('Wiki integration check timed out')
+    }
+    await waitFor(() => frame.contentDocument?.querySelector('.article-header'))
+    const win = frame.contentWindow
+    const root = win.document.documentElement
+    let initializations = 0
+    const initialize = win.mermaid.initialize.bind(win.mermaid)
+    win.mermaid.initialize = options => { initializations++; initialize(options) }
+    root.style.setProperty('--diagram-node-bg', 'not-a-color')
+    const previousTitle = win.document.title
+    win.location.hash = '/markdown-authoring'
+    await waitFor(() => win.document.title !== previousTitle)
+    equal(initializations, 0, 'ordinary Markdown skips Mermaid theme validation')
+    root.style.colorScheme = 'light'
+    root.style.setProperty('--surface', 'color-mix(in srgb, white 90%, blue)')
+    root.style.setProperty('--diagram-node-bg', '#abc')
+    root.style.setProperty('--chart-1', '#ff0000')
+    root.style.setProperty('--chart-2', '#00ff00')
+    root.style.setProperty('--chart-3', '#0000ff')
+    win.location.hash = '/diagrams'
+    await waitFor(() => win.document.querySelectorAll('.mermaid svg').length === 6 &&
+        win.document.querySelectorAll('.diagram-expand').length === 6)
+    equal(initializations, 1, 'diagram route initializes Mermaid lazily')
+    const config = win.mermaid.mermaidAPI.getConfig().themeVariables
+    equal(config.darkMode, false, 'actual Mermaid light mode')
+    equal(config.background, '#e6e6ff', 'actual Mermaid mixed surface')
+    equal(config.xyChart.plotColorPalette.split(',')[0], '#ff0000', 'actual XY palette')
+    const slices = [...win.document.querySelectorAll('.pieCircle')]
+    equal(win.getComputedStyle(slices[0]).fill, 'rgb(255, 0, 0)', 'rendered pie first color')
+    equal(win.getComputedStyle(slices[1]).fill, 'rgb(0, 255, 0)', 'rendered pie second color')
+    equal(win.document.querySelectorAll('.mermaid svg').length, 6, 'flow/sequence/state/ER/pie/XY rendered')
+    frame.remove()
+    document.title = 'PASS: Theme browser tests'
+    document.querySelector('#results').textContent = `${results.length} passed\n${results.join('\n')}`
+} catch (error) {
+    document.title = 'FAIL: Theme browser tests'
+    document.querySelector('#results').textContent = error.stack
+    console.error(error)
+}
+</script>
+</html>

@@ -51,6 +51,48 @@ stateDiagram-v2
     Documented --> [*]
 ```
 
+## Data schema
+
+Entity/relationship diagrams use the same node, border, label, and connector tokens.
+
+```mermaid
+erDiagram
+    THREAD ||--o{ MESSAGE : contains
+    THREAD {
+        string id PK
+        string title
+    }
+    MESSAGE {
+        string id PK
+        string thread_id FK
+        string text
+    }
+```
+
+## Categorical chart palette
+
+Pie slices use `--chart-1` through `--chart-8`; additional slices repeat the palette. Labels and borders use diagram tokens.
+
+```mermaid
+pie title Work distribution
+    "Design" : 40
+    "Engineering" : 35
+    "Testing" : 25
+```
+
+## XY chart
+
+Bar/line series share the same chart palette. Axes inherit `--diagram-line` and label tokens.
+
+```mermaid
+xychart-beta
+    title "Iteration progress"
+    x-axis [One, Two, Three, Four]
+    y-axis "Completed" 0 --> 100
+    bar [20, 40, 55, 75]
+    line [15, 35, 65, 90]
+```
+
 ## Authoring note
 
 Mermaid syntax errors fail visibly instead of silently falling back to a code block. See the [Mermaid documentation](https://mermaid.js.org/intro/) for supported diagram types and syntax.

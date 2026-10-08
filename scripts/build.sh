@@ -35,7 +35,7 @@ stage=$(mktemp -d "${TMPDIR:-/tmp}/wiki-build.XXXXXX")
 trap 'rm -rf "$stage"' EXIT
 mkdir -p "$stage/content"
 
-cp "$engine_dir/index.html" "$engine_dir/app.js" "$engine_dir/style.css" \
+cp "$engine_dir/index.html" "$engine_dir/app.js" "$engine_dir/theme.js" "$engine_dir/style.css" \
    "$engine_dir/custom.css" "$engine_dir/custom.js" "$engine_dir/favicon.svg" "$stage/"
 cp -R "$engine_dir/vendor" "$stage/vendor"
 

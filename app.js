@@ -3,6 +3,8 @@
  * Source files are rendered in the browser; there is no generated index or page compilation step.
  */
 
+import { readDiagramTheme } from "./theme.js"
+
 /* ========================================================================== *
  * ROUTING
  * ========================================================================== */
@@ -560,32 +562,7 @@ async function expandCodeIncludes(markdown, pagePath) {
 }
 
 function setupMermaid() {
-    const styles = getComputedStyle(document.documentElement)
-    const wikiValue = (name) => {
-        const value = styles.getPropertyValue(name).trim()
-        if (!value) throw new Error(`Wiki theme requires the “${name}” CSS custom property`)
-        return value
-    }
-    const wikiColor = (name) => {
-        const value = wikiValue(name)
-        if (!/^#[0-9a-f]{6}$/i.test(value)) {
-            throw new Error(`Wiki theme property “${name}” must be a six-digit hex color`)
-        }
-        return value
-    }
-
-    const colors = {
-        background: wikiColor("--bg"),
-        surface: wikiColor("--surface"),
-        raised: wikiColor("--surface-raised"),
-        borderStrong: wikiColor("--border-strong"),
-        text: wikiColor("--text"),
-        muted: wikiColor("--muted"),
-        faint: wikiColor("--faint"),
-        accent: wikiColor("--accent"),
-        accentInk: wikiColor("--accent-ink"),
-    }
-    const fontFamily = wikiValue("--font-sans")
+    const { colors, fontFamily, fontSize, darkMode, palette } = readDiagramTheme()
 
     mermaid.initialize({
         startOnLoad: false,
@@ -593,10 +570,10 @@ function setupMermaid() {
         theme: "base",
         fontFamily,
         themeVariables: {
-            darkMode: true,
+            darkMode,
             background: colors.surface,
             fontFamily,
-            fontSize: "15px",
+            fontSize,
             primaryColor: colors.raised,
             primaryTextColor: colors.text,
             primaryBorderColor: colors.borderStrong,
@@ -606,7 +583,7 @@ function setupMermaid() {
             tertiaryColor: colors.background,
             tertiaryTextColor: colors.muted,
             tertiaryBorderColor: colors.borderStrong,
-            lineColor: colors.muted,
+            lineColor: colors.line,
             textColor: colors.text,
             mainBkg: colors.raised,
             nodeBorder: colors.borderStrong,
@@ -631,6 +608,46 @@ function setupMermaid() {
             activationBorderColor: colors.accent,
             labelColor: colors.text,
             altBackground: colors.background,
+            titleColor: colors.text,
+            classText: colors.text,
+            nodeBkg: colors.raised,
+            stateBkg: colors.raised,
+            stateLabelColor: colors.text,
+            labelBackgroundColor: colors.raised,
+            compositeBackground: colors.surface,
+            compositeBorder: colors.borderStrong,
+            transitionColor: colors.line,
+            transitionLabelColor: colors.text,
+            attributeBackgroundColorOdd: colors.raised,
+            attributeBackgroundColorEven: colors.surface,
+            relationColor: colors.line,
+            relationLabelColor: colors.text,
+            relationLabelBackground: colors.surface,
+            // Shared categorical palette: pie, XY, and Mermaid's color scales.
+            ...Object.fromEntries(Array.from({ length: 12 }, (_, index) => [
+                `pie${index + 1}`, palette[index % palette.length],
+            ])),
+            ...Object.fromEntries(Array.from({ length: 12 }, (_, index) => [
+                `cScale${index}`, palette[index % palette.length],
+            ])),
+            pieTitleTextColor: colors.text,
+            pieLegendTextColor: colors.text,
+            pieSectionTextColor: colors.accentInk,
+            pieStrokeColor: colors.borderStrong,
+            pieOuterStrokeColor: colors.borderStrong,
+            xyChart: {
+                backgroundColor: colors.surface,
+                titleColor: colors.text,
+                xAxisLabelColor: colors.muted,
+                xAxisTitleColor: colors.text,
+                xAxisTickColor: colors.line,
+                xAxisLineColor: colors.line,
+                yAxisLabelColor: colors.muted,
+                yAxisTitleColor: colors.text,
+                yAxisTickColor: colors.line,
+                yAxisLineColor: colors.line,
+                plotColorPalette: palette.join(","),
+            },
         },
         themeCSS: `
       .node rect, .node circle, .node ellipse, .node polygon, .node path {
@@ -667,6 +684,8 @@ function setupMermaid() {
 async function renderDiagrams() {
     const nodes = [...elements.article.querySelectorAll(".mermaid")]
     if (nodes.length === 0) return
+    // Resolve current CSS only when needed; ordinary pages never depend on Mermaid themes.
+    setupMermaid()
     await mermaid.run({ nodes, suppressErrors: false })
     nodes.forEach(setupExpandableDiagram)
 }
@@ -1212,7 +1231,6 @@ function renderFatal(error) {
 async function init() {
     setupMarkdown()
     setupContentRenderers()
-    setupMermaid()
     setupDiagramViewer()
     setupSidebar()
     setupFilter()

@@ -37,6 +37,8 @@ printf 'stale output\n' > "$fixture/dist/content/stale.md"
 "$engine_dir/scripts/build.sh" "$fixture" "$fixture/dist"
 
 test -f "$fixture/dist/index.html"
+test -f "$fixture/dist/theme.js"
+grep -q "readDiagramTheme" "$fixture/dist/theme.js"
 test -f "$fixture/dist/content/_config.md"
 test -f "$fixture/dist/content/_sidebar.md"
 test -f "$fixture/dist/content/home.md"
