@@ -61,6 +61,11 @@ fi
 [[ -f "$source_dir/favicon.svg" ]] && cp "$source_dir/favicon.svg" "$stage/favicon.svg"
 : > "$stage/.nojekyll"
 
+# Validate the actual publishable tree, not files which copying excluded.
+# Leave the previous output intact when validation fails. Browser smoke is opt-in only.
+command -v node >/dev/null 2>&1 || { echo "Wiki validation requires Node.js 22 or newer" >&2; exit 1; }
+node "$engine_dir/scripts/validate.mjs" "$stage/content" --site "$stage"
+
 rm -rf "$output_dir"
 mv "$stage" "$output_dir"
 trap - EXIT

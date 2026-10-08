@@ -62,6 +62,28 @@ Open [http://localhost:8080](http://localhost:8080). The server reads the curren
 
 Use `make build` only when you want to inspect or publish the assembled static directory.
 
+## Check content before publishing
+
+Run fast validation with Node.js 22 or newer:
+
+```sh
+make validate
+make validate VALIDATE_FLAGS=--strict
+```
+
+The validator reuses the wiki engine's parsing and rendering rules to check metadata, navigation, internal links and sections, local files/images, code includes, formulas, and custom content. Errors fail the command; warnings fail only with `--strict`. Browser-dependent custom code produces a warning because it cannot be fully checked in Node.
+
+`make build` and the GitHub Action automatically validate the assembled content before publishing. Browser tests are **never automatic**. For an occasional deeper check, install optional Playwright and Chromium in the engine directory (`.wiki-engine/` in a content repository), then opt in:
+
+```sh
+npm install --no-save --package-lock=false playwright
+npx playwright install chromium
+# Return to your content repository:
+make validate VALIDATE_FLAGS=--browser
+```
+
+This exercises the real app in a temporary local browser, including Mermaid, custom hooks, filtering, section links, pagination, and diagram controls. Normal validation needs none of those browser dependencies.
+
 ## Runtime features
 
 - Markdown pages loaded directly in the browser.

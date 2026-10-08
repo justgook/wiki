@@ -7,3 +7,4 @@ Thumbs.db
 
 .wiki-engine/
 .wiki-dist/
+node_modules/

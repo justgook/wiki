@@ -170,7 +170,7 @@ The action accepts:
 - `source` — content directory, default `.`
 - `output` — generated site directory, default `.wiki-dist`
 
-It validates `_config.md` and `_sidebar.md`, copies public content, applies optional `custom.css`, `custom.js`, and `favicon.svg`, and returns the absolute generated directory as the `path` output. Dotfiles, `.github/`, `Makefile`, and local wiki folders are not published as content.
+It copies public content, applies optional `custom.css`, `custom.js`, and `favicon.svg`, validates the assembled wiki, and returns the absolute generated directory as the `path` output. Content errors stop publication; browser smoke tests are never run automatically. Dotfiles, `.github/`, `Makefile`, and local wiki folders are not published as content.
 
 ## Preview locally
 
@@ -207,6 +207,46 @@ make clean
 
 Inside this engine repository, `make serve` automatically uses the existing `content/` demo. In a content repository it serves the current directory; `WIKI_SOURCE=path/to/content` can override that detection.
 
+## Validate before publishing
+
+Requires **Node.js 22 or newer**. Fast validation uses the engine's existing vendored Markdown, YAML, highlighting and KaTeX libraries; it needs no npm install, browser, server or network access (unless your trusted custom code accesses the network).
+
+```sh
+make validate
+make validate VALIDATE_FLAGS=--strict           # Also fail on warnings
+make validate VALIDATE_FLAGS=--browser          # Explicit, slower browser smoke
+# Inside the engine repository:
+node scripts/validate.mjs content
+```
+
+Validation checks configuration, sidebar structure, all published Markdown and registered-format pages, title/status metadata, internal links and sections, local linked files/images, code includes/ranges, strict formulas, and custom renderer output. It ignores dotfiles and syntax examples inside code; `todo` statuses and authoring markers are not errors. Unreachable pages and noncanonical filenames produce warnings. External URLs are not checked. File paths must match case exactly.
+
+Custom statuses and renderer modules execute as **trusted local code**, just as they are trusted browser code at runtime. Node-compatible renderers are checked directly, including query variants found in links. Custom formats may require query parameters; unlisted formats that cannot render without them produce a warning. Code requiring browser globals or browser-relative `fetch()` is deferred with a warning recommending `--browser`; `--strict` prevents publishing with such incomplete checks. Browser-only hooks, Mermaid rendering, layout, CSS resources and assets referenced only through `srcset` are outside the fast check.
+
+`make build` and the reusable GitHub Action automatically run **fast validation only**, against the assembled publishable files. Errors leave the previous output directory intact. Local building therefore now needs Node.js, even if previewing uses Python. The action sets up Node.js 22 itself.
+
+### Optional browser smoke
+
+Install the optional dependency **in the engine directory** (this repository, or `.wiki-engine/` in a content repository):
+
+```sh
+npm install --no-save --package-lock=false playwright
+npx playwright install chromium
+```
+
+Then run `make validate VALIDATE_FLAGS=--browser` from your wiki directory. Nothing installs or downloads automatically. Playwright's `node_modules/` can be ignored by Git; no dependency is needed for normal validation or publishing.
+
+The smoke runner starts a temporary local server and headless Chromium, visits discovered pages and linked query routes, checks fatal panels, uncaught errors, local requests/images and actual Mermaid rendering, and exercises filtering, section navigation, pagination and diagram controls where present. It runs custom `afterRender()` hooks through the real app. It closes the browser and server afterwards. Browser checks run only after content validation has no errors; they are not a visual/layout audit or an exhaustive test of arbitrary custom query combinations.
+
+For an already assembled site:
+
+```sh
+node scripts/validate.mjs .wiki-dist/content --site .wiki-dist
+node scripts/validate.mjs .wiki-dist/content --site .wiki-dist --browser
+```
+
+Diagnostics include the source file, and line information when provided by the parser/include processor. Exit status is `1` on errors (or warnings with `--strict`), otherwise `0`.
+
 ## Migrating a submodule-based wiki
 
 For a repository like `justgook/imprint-zero`:
@@ -236,4 +276,4 @@ Fetch tags first if your checkout is stale (`git fetch origin --tags`). The scri
 
 The runtime has no package install or compilation step. `scripts/build.sh content .wiki-dist` assembles a site. Third-party browser libraries and their licenses are kept under `vendor/` so generated wikis work without CDN dependencies.
 
-Checks: `node --test test/*.test.mjs`, `bash test/build.test.sh`, and `bash test/release.test.sh`. Browser color regressions: run `node scripts/serve.mjs content 8080`, then open `http://localhost:8080/test/theming.browser.html` (expect `PASS` in the title).
+Checks: `node --test test/*.test.mjs`, `bash test/build.test.sh`, and `bash test/release.test.sh`. Opt-in smoke integration tests: `WIKI_BROWSER_TEST=1 node --test test/smoke.test.mjs` (requires Playwright/Chromium). Browser color regressions: run `node scripts/serve.mjs content 8080`, then open `http://localhost:8080/test/theming.browser.html` (expect `PASS` in the title).

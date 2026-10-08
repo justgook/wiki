@@ -28,7 +28,7 @@ printf '/* fixture override */\n' > "$fixture/custom.css"
 printf '/* fixture script */\n' > "$fixture/custom.js"
 printf 'do not publish\n' > "$fixture/.env"
 mkdir -p "$fixture/pages/nested" "$fixture/wiki-extensions" "$fixture/game-text" "$fixture/dist/content"
-printf 'public page\n' > "$fixture/pages/reference.md"
+printf '%s\n' '---' 'title: Reference' 'status: reference' '---' 'Public page.' > "$fixture/pages/reference.md"
 printf 'export default {}\n' > "$fixture/wiki-extensions/example.js"
 printf 'msgid "Example"\nmsgstr ""\n' > "$fixture/game-text/example.po"
 printf 'do not publish\n' > "$fixture/pages/nested/.secret"
@@ -56,5 +56,23 @@ rm "$fixture/custom.js"
 test -f "$fixture/dist/custom.js"
 ! grep -q 'fixture script' "$fixture/dist/custom.js"
 test ! -e "$fixture/dist/content/dist"
+
+# A bad page blocks publication without replacing the last successful output.
+printf '%s\n' '---' 'title: Home' 'status: invalid' '---' > "$fixture/home.md"
+if "$engine_dir/scripts/build.sh" "$fixture" "$fixture/dist" > "$fixture/build.log" 2>&1; then
+    echo 'Expected content validation to fail' >&2
+    exit 1
+fi
+grep -q 'home.md.*requires status' "$fixture/build.log"
+grep -q 'Content copied successfully' "$fixture/dist/content/home.md"
+rm "$fixture/build.log"
+
+# Browser-only customization remains publishable, but fast validation reports its limitation.
+printf '%s\n' '---' 'title: Home' 'status: accepted' '---' 'Browser customization fixture.' > "$fixture/home.md"
+printf '%s\n' 'export default () => { document.body.dataset.customized = "yes" }' > "$fixture/custom.js"
+"$engine_dir/scripts/build.sh" "$fixture" "$fixture/dist" > "$fixture/build.log" 2>&1
+grep -q 'WARNING custom.js.*Browser-dependent' "$fixture/build.log"
+grep -q 'Browser customization fixture' "$fixture/dist/content/home.md"
+rm "$fixture/build.log"
 
 echo "build integration test passed"

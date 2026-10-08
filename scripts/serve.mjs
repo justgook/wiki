@@ -4,7 +4,7 @@ import { createServer } from "node:http"
 import { dirname, extname, resolve, sep } from "node:path"
 import { fileURLToPath } from "node:url"
 
-const engineRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..")
+const engineRoot = process.argv[4] ? resolve(process.argv[4]) : resolve(dirname(fileURLToPath(import.meta.url)), "..")
 const contentRoot = resolve(process.argv[2] || ".")
 const port = Number(process.argv[3] || 8080)
 const mimeTypes = {
@@ -14,6 +14,7 @@ const mimeTypes = {
     ".jpeg": "image/jpeg",
     ".jpg": "image/jpeg",
     ".js": "text/javascript; charset=utf-8",
+    ".mjs": "text/javascript; charset=utf-8",
     ".json": "application/json; charset=utf-8",
     ".md": "text/markdown; charset=utf-8",
     ".png": "image/png",
@@ -41,16 +42,16 @@ function requestedFile(pathname) {
     if (pathname === "/content" || pathname.startsWith("/content/")) {
         return safePath(contentRoot, pathname.slice("/content".length).replace(/^\/+/, ""))
     }
-    if ((pathname === "/custom.css" || pathname === "/custom.js") && existsSync(resolve(contentRoot, pathname.slice(1)))) {
+    if (!process.argv[4] && (pathname === "/custom.css" || pathname === "/custom.js") && existsSync(resolve(contentRoot, pathname.slice(1)))) {
         return resolve(contentRoot, pathname.slice(1))
     }
-    if (pathname === "/favicon.svg" && existsSync(resolve(contentRoot, "favicon.svg"))) {
+    if (!process.argv[4] && pathname === "/favicon.svg" && existsSync(resolve(contentRoot, "favicon.svg"))) {
         return resolve(contentRoot, "favicon.svg")
     }
     return safePath(engineRoot, `.${pathname}`)
 }
 
-createServer(async (request, response) => {
+const server = createServer(async (request, response) => {
     try {
         const pathname = decodeURIComponent(new URL(request.url, "http://localhost").pathname)
         let file = requestedFile(pathname)
@@ -80,6 +81,6 @@ createServer(async (request, response) => {
         }).end("Not found\n")
     }
 }).listen(port, "127.0.0.1", () => {
-    console.log(`Wiki available at http://localhost:${port}`)
+    console.log(`Wiki available at http://localhost:${server.address().port}`)
     console.log(`Serving live content from ${contentRoot}`)
 })

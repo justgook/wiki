@@ -295,10 +295,10 @@ function escapeAttribute(value) {
     return escapeHTML(value).replaceAll('"', "&quot;").replaceAll("'", "&#39;")
 }
 
-function parseFrontmatter(raw, source) {
+function parseFrontmatter(raw, source, yaml = jsyaml) {
     const match = raw.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/)
     if (!match) return { data: {}, content: raw }
-    const data = jsyaml.load(match[1])
+    const data = yaml.load(match[1])
     if (!data || typeof data !== "object" || Array.isArray(data)) {
         throw new Error(`Frontmatter must be an object: ${source}`)
     }
@@ -311,10 +311,10 @@ async function fetchText(path) {
     return response.text()
 }
 
-function setupMarkdown() {
+function setupMarkdown(marked = globalThis.marked, registry = contentRenderers, dependencies = globalThis) {
     marked.setOptions({ gfm: true, breaks: false, pedantic: false })
-    marked.use(markedFootnote({ refMarkers: true, footnoteDivider: true }))
-    marked.use(markedKatex({ throwOnError: true, strict: "error", trust: false }))
+    marked.use(dependencies.markedFootnote({ refMarkers: true, footnoteDivider: true }))
+    marked.use(dependencies.markedKatex({ throwOnError: true, strict: "error", trust: false }))
 
     const renderer = new marked.Renderer()
     renderer.code = (code, language) => {
@@ -323,7 +323,7 @@ function setupMarkdown() {
         if (lang === "mermaid") {
             return `<div class="mermaid">${escapeHTML(source)}</div>`
         }
-        const highlighted = highlightSource(source, lang)
+        const highlighted = highlightSource(source, lang, dependencies.hljs)
         return `<pre><code class="hljs language-${escapeHTML(lang || "")}">${highlighted}</code></pre>`
     }
 
@@ -338,7 +338,7 @@ function setupMarkdown() {
                 },
                 tokenizer: tokenizeWikilink,
                 renderer(token) {
-                    const extensions = contentRenderers.extensions()
+                    const extensions = registry.extensions()
                     const route = routePath(token.target, extensions)
                     return `<a class="wiki-link" data-page="${escapeAttribute(route)}" href="${escapeAttribute(pageURL(token.target, extensions))}">${escapeHTML(token.label)}</a>`
                 },
@@ -351,19 +351,73 @@ function renderMarkdown(markdown) {
     return marked.parse(prepareMarkdown(markdown))
 }
 
-function setupContentRenderers() {
-    contentRenderers.register({
+function markdownContentRenderer({ yaml, renderMarkdown, includeOptions }) {
+    return {
         extensions: [".md"],
         async render({ source, path }) {
-            const { data, content } = parseFrontmatter(source, path)
-            const expandedContent = await expandCodeIncludes(content, path)
-            return {
-                data,
-                html: renderMarkdown(expandedContent),
-                className: "prose",
-            }
+            const { data, content } = parseFrontmatter(source, path, yaml)
+            const expandedContent = await expandCodeIncludes(content, path, includeOptions)
+            return { data, html: renderMarkdown(expandedContent), className: "prose" }
         },
-    }, "built-in Markdown renderer")
+    }
+}
+
+function setupContentRenderers() {
+    contentRenderers.register(markdownContentRenderer({ yaml: jsyaml, renderMarkdown }), "built-in Markdown renderer")
+}
+
+// A fresh, environment-independent content pipeline for authoring tools.
+// The browser and validator use the same parsers, renderer contract and include rules.
+function createContentRuntime({ dependencies, readText, baseURL }) {
+    const statuses = createStatusRegistry()
+    const registry = createRendererRegistry()
+    const parser = new dependencies.marked.Marked()
+    setupMarkdown(parser, registry, dependencies)
+    const renderMarkdown = (source) => parser.parse(prepareMarkdown(source))
+    registry.register(markdownContentRenderer({
+        yaml: dependencies.jsyaml,
+        renderMarkdown,
+        includeOptions: { readText, baseURL, highlighter: dependencies.hljs },
+    }), "built-in Markdown renderer")
+    const helpers = Object.freeze({
+        escapeHTML,
+        escapeAttribute,
+        pageURL: (target) => pageURL(target, registry.extensions()),
+        renderMarkdown,
+    })
+    return {
+        statuses,
+        registry,
+        renderMarkdown,
+        parseFrontmatter: (source, path) => parseFrontmatter(source, path, dependencies.jsyaml),
+        async configure(module) {
+            if (module.default === undefined) return
+            if (typeof module.default !== "function") throw new Error("custom.js must export a default configure function")
+            await module.default({
+                registerStatus: (status) => statuses.register(status),
+                setStatuses: (values) => statuses.replace(values),
+            })
+        },
+        async render({ source, path, extension, query = new URLSearchParams(), validateStatus = true }) {
+            const renderer = registry.renderer(extension)
+            return validateRenderedPage(await renderer.render({ source, path, query, helpers }), path, validateStatus ? statuses : null)
+        },
+    }
+}
+
+function validateConfig(data) {
+    for (const key of ["title", "description", "home"]) {
+        if (typeof data[key] !== "string" || !data[key].trim()) {
+            throw new Error(`content/_config.md requires a non-empty “${key}” string`)
+        }
+    }
+    if (data.extensions !== undefined) {
+        if (!Array.isArray(data.extensions) || data.extensions.some((path) => typeof path !== "string")) {
+            throw new Error("content/_config.md extensions must be an array of module paths")
+        }
+        data.extensions.forEach(safeContentModulePath)
+    }
+    return data
 }
 
 async function loadSiteCustomization() {
@@ -390,7 +444,7 @@ async function loadContentExtensions() {
     }
 }
 
-function validateRenderedPage(result, source) {
+function validateRenderedPage(result, source, statuses = pageStatuses) {
     if (!result || typeof result !== "object" || Array.isArray(result)) {
         throw new Error(`Content renderer must return an object: ${source}`)
     }
@@ -401,8 +455,8 @@ function validateRenderedPage(result, source) {
     if (typeof data.title !== "string" || !data.title.trim()) {
         throw new Error(`${source} requires a title`)
     }
-    if (!pageStatuses.has(data.status)) {
-        throw new Error(`${source} requires status: ${pageStatuses.list().join(", ")}`)
+    if (statuses && !statuses.has(data.status)) {
+        throw new Error(`${source} requires status: ${statuses.list().join(", ")}`)
     }
     if (typeof result.html !== "string") {
         throw new Error(`Content renderer must return HTML: ${source}`)
@@ -423,10 +477,10 @@ function rendererHelpers() {
     })
 }
 
-function highlightSource(source, language) {
-    return language && hljs.getLanguage(language)
-        ? hljs.highlight(source, { language, ignoreIllegals: true }).value
-        : hljs.highlightAuto(source).value
+function highlightSource(source, language, highlighter = hljs) {
+    return language && highlighter.getLanguage(language)
+        ? highlighter.highlight(source, { language, ignoreIllegals: true }).value
+        : highlighter.highlightAuto(source).value
 }
 
 function parseLineRange(spec, lineCount, description) {
@@ -451,14 +505,14 @@ function parseHighlightedLines(spec, displayedLineCount) {
     return highlighted
 }
 
-function resolveIncludePath(rawPath, pagePath) {
+function resolveIncludePath(rawPath, pagePath, baseURL = location.href) {
     const includePath = rawPath.trim()
     if (!includePath || includePath.startsWith("/") || /^[a-z][a-z0-9+.-]*:/i.test(includePath)) {
         throw new Error(`Code include path must be relative: ${rawPath}`)
     }
 
-    const contentRoot = new URL("content/", location.href)
-    const pageURL = new URL(pagePath, location.href)
+    const contentRoot = new URL("content/", baseURL)
+    const pageURL = new URL(pagePath, baseURL)
     const resolved = new URL(includePath, pageURL)
     if (resolved.origin !== contentRoot.origin || !resolved.pathname.startsWith(contentRoot.pathname)) {
         throw new Error(`Code include must stay inside content/: ${rawPath}`)
@@ -504,17 +558,17 @@ function wrapHighlightedCode(highlightedHTML, firstSourceLine, highlightedLines)
         .join("")
 }
 
-async function renderCodeInclude({ path, sourceRange, language, highlightRange }, pagePath) {
-    const resolved = resolveIncludePath(path, pagePath)
-    const source = (await fetchText(resolved.href)).replace(/\r\n?/g, "\n")
+async function renderCodeInclude({ path, sourceRange, language, highlightRange }, pagePath, { baseURL = location.href, readText = fetchText, highlighter = hljs } = {}) {
+    const resolved = resolveIncludePath(path, pagePath, baseURL)
+    const source = (await readText(resolved.href)).replace(/\r\n?/g, "\n")
     const lines = source.split("\n")
     const { start, end } = parseLineRange(sourceRange, lines.length, "source")
     const selected = lines.slice(start - 1, end).join("\n")
     const highlightedLines = parseHighlightedLines(highlightRange, end - start + 1)
     const codeLanguage = language || inferLanguage(resolved.pathname)
-    const highlighted = highlightSource(selected, codeLanguage)
+    const highlighted = highlightSource(selected, codeLanguage, highlighter)
     const renderedLines = wrapHighlightedCode(highlighted, start, highlightedLines)
-    const label = decodeURIComponent(resolved.pathname.slice(new URL("content/", location.href).pathname.length))
+    const label = decodeURIComponent(resolved.pathname.slice(new URL("content/", baseURL).pathname.length))
     const rangeLabel = sourceRange ? `<span>lines ${start}–${end}</span>` : ""
 
     return `<figure class="code-include">
@@ -523,13 +577,13 @@ async function renderCodeInclude({ path, sourceRange, language, highlightRange }
 </figure>`
 }
 
-async function expandCodeIncludes(markdown, pagePath) {
+async function expandCodeIncludes(markdown, pagePath, options) {
     const directive = /^ {0,3}@\[code(?:\{([^}]+)\})?(?:\s+([a-z0-9_+-]+)(?:\{([^}]+)\})?)?\]\(([^)\n]+)\)\s*$/i
     const lines = markdown.replace(/\r\n?/g, "\n").split("\n")
     const output = []
     let fence = null
 
-    for (const line of lines) {
+    for (const [index, line] of lines.entries()) {
         const fenceMatch = /^ {0,3}(`{3,}|~{3,})/.exec(line)
         if (fenceMatch) {
             const marker = fenceMatch[1]
@@ -545,17 +599,16 @@ async function expandCodeIncludes(markdown, pagePath) {
             continue
         }
 
-        output.push(
-            await renderCodeInclude(
-                {
-                    sourceRange: match[1],
-                    language: match[2],
-                    highlightRange: match[3],
-                    path: match[4],
-                },
-                pagePath,
-            ),
-        )
+        try {
+            output.push(await renderCodeInclude({
+                sourceRange: match[1],
+                language: match[2],
+                highlightRange: match[3],
+                path: match[4],
+            }, pagePath, options))
+        } catch (error) {
+            throw new Error(`${pagePath}:body line ${index + 1} — ${error.message}`, { cause: error })
+        }
     }
 
     return output.join("\n")
@@ -894,12 +947,7 @@ function setupDiagramViewer() {
 async function loadConfig() {
     const raw = await fetchText("content/_config.md")
     const { data } = parseFrontmatter(raw, "content/_config.md")
-    for (const key of ["title", "description", "home"]) {
-        if (typeof data[key] !== "string" || !data[key].trim()) {
-            throw new Error(`content/_config.md requires a non-empty “${key}” string`)
-        }
-    }
-    config = data
+    config = validateConfig(data)
     elements.brand.textContent = config.title
     elements.brand.href = pageURL(config.home, contentRenderers.extensions())
     document.title = config.title
@@ -977,6 +1025,7 @@ function routePage() {
 
 async function renderRoute() {
     const renderID = ++routeRenderID
+    elements.article.dataset.renderState = "loading"
     if (elements.diagramDialog.open) elements.diagramDialog.close()
     const state = routeState()
     currentPage = state.page
@@ -1034,6 +1083,7 @@ async function renderRoute() {
             helpers: rendererHelpers(),
         })
     }
+    if (renderID === routeRenderID) elements.article.dataset.renderState = "ready"
 }
 
 function setupDocumentMarkers() {
@@ -1220,6 +1270,7 @@ function setupSidebar() {
 }
 
 function renderFatal(error) {
+    elements.article.dataset.renderState = "error"
     console.error(error)
     elements.article.innerHTML = `
     <div class="fatal-error">
@@ -1246,9 +1297,14 @@ if (typeof document !== "undefined") init().catch(renderFatal)
 
 export {
     contentRequest,
+    createContentRuntime,
     createRendererRegistry,
     createStatusRegistry,
     escapeAttribute,
+    headingID,
+    parseFrontmatter,
+    validateConfig,
+    validateRenderedPage,
     pageURL,
     prepareMarkdown,
     routePath,

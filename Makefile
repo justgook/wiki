@@ -4,17 +4,22 @@ WIKI_ENGINE ?= .wiki-engine
 WIKI_OUTPUT ?= .wiki-dist
 WIKI_SOURCE ?= $(if $(wildcard _config.md),.,content)
 PORT ?= 8080
+VALIDATE_FLAGS ?=
+WIKI_RUNTIME = $(if $(wildcard app.js),.,$(WIKI_ENGINE))
 
-.PHONY: build serve clean reinstall-engine
+.PHONY: build serve validate clean reinstall-engine
 
-build: $(WIKI_ENGINE)/scripts/serve.mjs
-	@$(WIKI_ENGINE)/scripts/build.sh "$(WIKI_SOURCE)" "$(WIKI_OUTPUT)"
+build: $(WIKI_RUNTIME)/scripts/serve.mjs
+	@$(WIKI_RUNTIME)/scripts/build.sh "$(WIKI_SOURCE)" "$(WIKI_OUTPUT)"
 
-serve: $(WIKI_ENGINE)/scripts/serve.mjs
-	@command -v bun >/dev/null 2>&1 && exec bun "$(WIKI_ENGINE)/scripts/serve.mjs" "$(WIKI_SOURCE)" "$(PORT)"; \
-	command -v node >/dev/null 2>&1 && exec node "$(WIKI_ENGINE)/scripts/serve.mjs" "$(WIKI_SOURCE)" "$(PORT)"; \
-	command -v python3 >/dev/null 2>&1 && exec python3 "$(WIKI_ENGINE)/scripts/serve.py" "$(WIKI_SOURCE)" "$(PORT)"; \
-	command -v python >/dev/null 2>&1 && exec python "$(WIKI_ENGINE)/scripts/serve.py" "$(WIKI_SOURCE)" "$(PORT)"; \
+validate: $(WIKI_RUNTIME)/scripts/serve.mjs
+	@node "$(WIKI_RUNTIME)/scripts/validate.mjs" "$(WIKI_SOURCE)" $(VALIDATE_FLAGS)
+
+serve: $(WIKI_RUNTIME)/scripts/serve.mjs
+	@command -v bun >/dev/null 2>&1 && exec bun "$(WIKI_RUNTIME)/scripts/serve.mjs" "$(WIKI_SOURCE)" "$(PORT)"; \
+	command -v node >/dev/null 2>&1 && exec node "$(WIKI_RUNTIME)/scripts/serve.mjs" "$(WIKI_SOURCE)" "$(PORT)"; \
+	command -v python3 >/dev/null 2>&1 && exec python3 "$(WIKI_RUNTIME)/scripts/serve.py" "$(WIKI_SOURCE)" "$(PORT)"; \
+	command -v python >/dev/null 2>&1 && exec python "$(WIKI_RUNTIME)/scripts/serve.py" "$(WIKI_SOURCE)" "$(PORT)"; \
 	echo "make serve requires Bun, Node.js, or Python" >&2; exit 1
 
 $(WIKI_ENGINE)/scripts/serve.mjs:
