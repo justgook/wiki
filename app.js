@@ -112,6 +112,102 @@ function normalizeRendererExtension(value) {
     return extension
 }
 
+function createCodeBlockRegistry({ afterMermaidRender } = {}) {
+    const renderers = new Map()
+    const blocks = new Map()
+    let nextID = 0
+    let position = 0
+    let pagePath = "Markdown"
+    const registry = {
+        register(renderer) {
+            if (!renderer || typeof renderer !== "object" || typeof renderer.name !== "string" || !/^[a-z][a-z0-9_-]*$/.test(renderer.name)) {
+                throw new Error("Code block renderer must declare a lowercase name")
+            }
+            if (typeof renderer.render !== "function") throw new Error(`Code block ${renderer.name} must provide render()`)
+            if (renderer.afterRender !== undefined && typeof renderer.afterRender !== "function") {
+                throw new Error(`Code block ${renderer.name} afterRender must be a function`)
+            }
+            if (renderers.has(renderer.name)) throw new Error(`Code block renderer already registered: ${renderer.name}`)
+            renderers.set(renderer.name, Object.freeze({ ...renderer }))
+        },
+        begin(path = "Markdown") {
+            blocks.clear()
+            position = 0
+            pagePath = path
+        },
+        render({ source, info = "", helpers }) {
+            const index = ++position
+            const name = info.trim().split(/\s+/)[0]
+            const renderer = renderers.get(name)
+            if (!renderer) return null
+            const label = `${pagePath}: code block ${index} (${name})`
+            try {
+                const result = renderer.render({ source, info, helpers })
+                if (typeof result?.then === "function") Promise.resolve(result).catch(() => {})
+                if (!result || Array.isArray(result) || typeof result.html !== "string" || typeof result.then === "function") {
+                    throw new Error("render() must synchronously return { html, className? }")
+                }
+                if (result.className !== undefined && (typeof result.className !== "string" ||
+                    !/^[a-zA-Z0-9_-]+(?:\s+[a-zA-Z0-9_-]+)*$/.test(result.className))) {
+                    throw new Error("className must contain only class names")
+                }
+                const id = String(++nextID)
+                blocks.set(id, { renderer, source, info, label })
+                return `<div data-wiki-code-block="${id}" class="wiki-code-block${result.className ? ` ${result.className}` : ""}">${result.html}</div>`
+            } catch (cause) {
+                throw new Error(`${label}: ${cause.message}`, { cause })
+            }
+        },
+        async mount(article, { signal, ...context }) {
+            const pending = [...article.querySelectorAll("[data-wiki-code-block]")].map((element) => ({
+                element, block: blocks.get(element.dataset.wikiCodeBlock),
+            }))
+            const cleanups = []
+            let disposed = false
+            const dispose = () => {
+                if (disposed) return
+                disposed = true
+                signal.removeEventListener("abort", dispose)
+                for (const cleanup of cleanups.splice(0).reverse()) {
+                    try { cleanup() } catch (error) { console.error("Code block cleanup failed", error) }
+                }
+            }
+            signal.addEventListener("abort", dispose, { once: true })
+            if (signal.aborted) dispose()
+            try {
+                for (const { element, block } of pending) {
+                    if (disposed) break
+                    if (!block?.renderer.afterRender) continue
+                    try {
+                        const cleanup = await block.renderer.afterRender({
+                            ...context, element, source: block.source, info: block.info, signal,
+                        })
+                        if (cleanup !== undefined && typeof cleanup !== "function") {
+                            throw new Error("afterRender() must return a cleanup function or undefined")
+                        }
+                        if (cleanup) {
+                            if (disposed) cleanup()
+                            else cleanups.push(cleanup)
+                        }
+                    } catch (cause) {
+                        if (!signal.aborted) throw new Error(`${block.label}: ${cause.message}`, { cause })
+                    }
+                }
+                return dispose
+            } catch (error) {
+                dispose()
+                throw error
+            }
+        },
+    }
+    registry.register({
+        name: "mermaid",
+        render: ({ source, helpers }) => ({ html: `<div class="mermaid">${helpers.escapeHTML(source)}</div>` }),
+        ...(afterMermaidRender ? { afterRender: afterMermaidRender } : {}),
+    })
+    return registry
+}
+
 function createRendererRegistry() {
     const renderers = new Map()
 
@@ -264,6 +360,8 @@ function createStatusRegistry() {
 
 const pageStatuses = createStatusRegistry()
 const contentRenderers = createRendererRegistry()
+const codeBlocks = createCodeBlockRegistry({ afterMermaidRender: renderMermaidBlock })
+let blockController
 const DOCUMENT_MARKERS = new Map([
     ["Accepted", "accepted"],
     ["In progress", "in-progress"],
@@ -311,7 +409,7 @@ async function fetchText(path) {
     return response.text()
 }
 
-function setupMarkdown(marked = globalThis.marked, registry = contentRenderers, dependencies = globalThis) {
+function setupMarkdown(marked = globalThis.marked, registry = contentRenderers, dependencies = globalThis, blockRegistry = codeBlocks) {
     marked.setOptions({ gfm: true, breaks: false, pedantic: false })
     marked.use(dependencies.markedFootnote({ refMarkers: true, footnoteDivider: true }))
     marked.use(dependencies.markedKatex({ throwOnError: true, strict: "error", trust: false }))
@@ -320,9 +418,15 @@ function setupMarkdown(marked = globalThis.marked, registry = contentRenderers, 
     renderer.code = (code, language) => {
         const source = typeof code === "object" ? code.text : code
         const lang = typeof code === "object" ? code.lang : language
-        if (lang === "mermaid") {
-            return `<div class="mermaid">${escapeHTML(source)}</div>`
-        }
+        const custom = blockRegistry.render({
+            source, info: lang || "",
+            helpers: {
+                escapeHTML, escapeAttribute,
+                pageURL: (target) => pageURL(target, registry.extensions()),
+                renderMarkdown: (markdown) => marked.parse(prepareMarkdown(markdown)),
+            },
+        })
+        if (custom !== null) return custom
         const highlighted = highlightSource(source, lang, dependencies.hljs)
         return `<pre><code class="hljs language-${escapeHTML(lang || "")}">${highlighted}</code></pre>`
     }
@@ -371,8 +475,9 @@ function setupContentRenderers() {
 function createContentRuntime({ dependencies, readText, baseURL }) {
     const statuses = createStatusRegistry()
     const registry = createRendererRegistry()
+    const blockRegistry = createCodeBlockRegistry()
     const parser = new dependencies.marked.Marked()
-    setupMarkdown(parser, registry, dependencies)
+    setupMarkdown(parser, registry, dependencies, blockRegistry)
     const renderMarkdown = (source) => parser.parse(prepareMarkdown(source))
     registry.register(markdownContentRenderer({
         yaml: dependencies.jsyaml,
@@ -394,11 +499,13 @@ function createContentRuntime({ dependencies, readText, baseURL }) {
             if (module.default === undefined) return
             if (typeof module.default !== "function") throw new Error("custom.js must export a default configure function")
             await module.default({
+                registerCodeBlock: (renderer) => blockRegistry.register(renderer),
                 registerStatus: (status) => statuses.register(status),
                 setStatuses: (values) => statuses.replace(values),
             })
         },
         async render({ source, path, extension, query = new URLSearchParams(), validateStatus = true }) {
+            blockRegistry.begin(path)
             const renderer = registry.renderer(extension)
             return validateRenderedPage(await renderer.render({ source, path, query, helpers }), path, validateStatus ? statuses : null)
         },
@@ -425,6 +532,7 @@ async function loadSiteCustomization() {
     if (module.default === undefined) return
     if (typeof module.default !== "function") throw new Error("custom.js must export a default configure function")
     await module.default({
+        registerCodeBlock: (renderer) => codeBlocks.register(renderer),
         registerStatus: (status) => pageStatuses.register(status),
         setStatuses: (statuses) => pageStatuses.replace(statuses),
     })
@@ -734,13 +842,12 @@ function setupMermaid() {
     })
 }
 
-async function renderDiagrams() {
-    const nodes = [...elements.article.querySelectorAll(".mermaid")]
-    if (nodes.length === 0) return
+async function renderMermaidBlock({ element, signal }) {
+    const diagram = element.querySelector(".mermaid")
     // Resolve current CSS only when needed; ordinary pages never depend on Mermaid themes.
     setupMermaid()
-    await mermaid.run({ nodes, suppressErrors: false })
-    nodes.forEach(setupExpandableDiagram)
+    await mermaid.run({ nodes: [diagram], suppressErrors: false })
+    if (!signal.aborted) setupExpandableDiagram(diagram)
 }
 
 function setupExpandableDiagram(diagram) {
@@ -1025,6 +1132,8 @@ function routePage() {
 
 async function renderRoute() {
     const renderID = ++routeRenderID
+    blockController?.abort()
+    const controller = blockController = new AbortController()
     elements.article.dataset.renderState = "loading"
     if (elements.diagramDialog.open) elements.diagramDialog.close()
     const state = routeState()
@@ -1036,6 +1145,7 @@ async function renderRoute() {
     const request = contentRequest(currentPage, contentRenderers.extensions())
     const renderer = contentRenderers.renderer(request.extension)
     const sourcePath = `content/${request.contentPath}`
+    codeBlocks.begin(sourcePath)
     let source
     let rendered
     try {
@@ -1068,7 +1178,11 @@ async function renderRoute() {
     <div class="content-renderer${className}">${rendered.html}</div>`
 
     setupDocumentMarkers()
-    await renderDiagrams()
+    await codeBlocks.mount(elements.article, {
+        path: sourcePath, query: state.query,
+        helpers: rendererHelpers(), signal: controller.signal,
+    })
+    if (renderID !== routeRenderID) return
     setupFootnoteNavigation()
     document.title = `${data.title} · ${config.title}`
     markActivePage()
@@ -1296,6 +1410,7 @@ async function init() {
 if (typeof document !== "undefined") init().catch(renderFatal)
 
 export {
+    createCodeBlockRegistry,
     contentRequest,
     createContentRuntime,
     createRendererRegistry,

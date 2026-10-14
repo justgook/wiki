@@ -77,6 +77,37 @@ All pages (including pages from custom renderers) must use one of the resulting 
 
 Override design tokens in your content repository's `custom.css`; no engine edits needed. [THEMING.md](THEMING.md) lists every token: UI, syntax highlighting, Mermaid diagrams, chart palettes, fonts, and layout. Set `color-scheme: light` or `dark` alongside your colors. Browser-supported CSS colors—including `rgb()`, short hex, and `color-mix()`—are resolved for Mermaid only on diagram pages. Custom chart/schema renderers can consume the same CSS variables.
 
+## Custom code-block renderers
+
+Register fenced-block views from the root `custom.js`. This is separate from custom file renderers:
+
+```js
+export default function configure({ registerCodeBlock }) {
+    registerCodeBlock({
+        name: "chatkit",
+        render({ source, info, helpers }) {
+            return {
+                html: "<p>ChatKit preview coming soon.</p>",
+                className: "chatkit-preview",
+            }
+        },
+        // Optional: initialize an interactive view after insertion.
+        afterRender({ element, source, info, path, query, helpers, signal }) {
+            // Work only inside element; respect signal when doing async work.
+            // Return a function to dispose listeners or mounted resources.
+        },
+    })
+}
+```
+
+Authors use a `chatkit` fenced block. The first word of the fence annotation selects the renderer; `info` contains the complete annotation, and `source` contains the fence contents. Additional annotation syntax belongs to the renderer. Registration names must match `[a-z][a-z0-9_-]*`. Duplicate names are rejected; `mermaid` is registered by the engine and cannot be replaced. Unregistered fences retain ordinary syntax highlighting.
+
+`render()` must synchronously return `{ html: string, className?: string }`; `className`, when supplied, contains space-separated class names. Helpers provide `escapeHTML`, `escapeAttribute`, `pageURL`, and `renderMarkdown`. Each rendered block has its own wrapper, passed as `element` to the optional `afterRender()` hook. The hook may be asynchronous and may return a synchronous cleanup function. `path` and `query` describe the current page.
+
+On navigation, the engine aborts the previous page's signal and runs cleanup functions in reverse initialization order. A cleanup returned after cancellation runs immediately. Hooks must honor cancellation before mutating elements or external state. Errors identify the page, fence position, and renderer name. Cleanup errors are logged without preventing other cleanups.
+
+Fast validation loads the same registrations and calls `render()`, checking its output and the resulting links and resources. It does not execute `afterRender()`; use runtime tests for interactive behavior. Renderer code and its returned markup are trusted, just like custom file renderers. Fence source is data: the engine never evaluates it. Project-specific styling belongs in `custom.css`.
+
 ## Custom content renderers
 
 A content repository can render non-Markdown text formats without compiling them to Markdown first. Register trusted project-local JavaScript modules in `_config.md`:
@@ -266,11 +297,13 @@ Requires Git, Node.js, and authenticated [GitHub CLI](https://cli.github.com/) (
 
 ```sh
 ./scripts/prepare-release.sh --dry-run       # Preview next minor version; no changes
-./scripts/prepare-release.sh v1.3.0         # Explicit version; existing HEAD tag can be reused
+./scripts/prepare-release.sh v1.5.0         # Explicit version; existing HEAD tag can be reused
 ./scripts/prepare-release.sh                # Next minor from latest local stable tag
 ```
 
 Fetch tags first if your checkout is stale (`git fetch origin --tags`). The script runs tests/build, creates an annotated tag, atomically pushes the current branch plus tag to `origin`, then creates a **draft** GitHub release with generated notes. Review the draft before publishing. Existing releases remain unchanged; dirty trees and conflicting tags are rejected. No commits, force pushes, or automatic publication. If GitHub draft creation fails after pushing, rerun with the same explicit version.
+
+The Pages workflow builds, validates, and deploys documentation after the `release` branch is pushed. It does not create tags or GitHub releases; those steps belong to this script. A locally prepared tag can be pushed and its draft created by passing its explicit version.
 
 ## Engine development
 
