@@ -130,6 +130,37 @@ The sidebar is authored in `content/_sidebar.md`.
 
 Keep the **Wiki guide** section at the bottom so documentation about the wiki remains separate from documentation about the game.
 
+## Live remote subwiki mounts
+
+A parent wiki can mount a trusted public site running the same engine. Add this to the parent's `_config.md` (at the content root):
+
+```yaml
+subwikis:
+  engine: {url: https://example.github.io/engine-wiki/}
+```
+
+Add the mount as a top-level entry in the parent's `_sidebar.md`, without manual child entries:
+
+```md
+- [[engine|Engine documentation]]
+```
+
+The ID `engine` reserves the local route prefix: do not also create local pages or directories under that name. A remote page such as `architecture.md` opens at `#/engine/architecture`. You can link to it from a parent page with `[[engine/architecture|Engine architecture]]`. Direct deep links are supported even before the mount's sidebar has been expanded.
+
+Remote sidebar navigation loads lazily on expansion. Pages are fetched live in the browser, so publishing remote changes does not require rebuilding the parent; normal browser caching still applies. Navigation and configuration are cached for the session; reload the parent to refresh them. A failed remote request stays isolated to the mount and offers a retry rather than breaking local content.
+
+### Links, resources, and rendering
+
+- Inside a mounted page, Markdown wiki links are scoped to that child: `[[Architecture]]` stays in `#/engine/architecture`, not the parent's local wiki.
+- Relative resources resolve from the remote site root, following the existing engine convention. Code includes are different: `@[code](path)` resolves relative to the remote page.
+- The parent's theme, installed renderers, and statuses apply. Remote `custom.js`, extensions, and styles are not loaded. The parent must install any renderers or statuses the child needs.
+
+### Trust and limits
+
+**Remote HTML is trusted, not sandboxed. Arbitrary third-party sites are unsafe to mount.** Use only trusted public sites running the same engine. Cross-origin fetching requires CORS on the remote host; GitHub Pages typically allows it.
+
+Only one level of mounts is supported; a child that declares nested mounts is rejected. Remote content has no offline availability promise and is not covered by full-text search. Sidebar filtering only filters navigation labels. Offline validators skip remote content checks: local validation does not verify remote pages, their links, or their resources.
+
 ## Code blocks
 
 Ordinary fenced blocks receive syntax highlighting:

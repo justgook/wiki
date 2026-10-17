@@ -121,6 +121,13 @@ export async function validateWiki({ source = "content", site } = {}) {
     }
     const extensions = runtime.registry.extensions()
     const pages = [...files].filter((path) => extensions.has(extname(path).toLowerCase()) && path !== "_config.md" && path !== "_sidebar.md").sort()
+    const mounts = new Set(Object.keys(config?.subwikis || {}))
+    const mountedRoute = (route) => mounts.has(route.split("/")[0])
+    // Mount roots own their entire namespace, including empty directories and
+    // files without a registered renderer that would otherwise evade page checks.
+    for (const entry of await readdir(source, { withFileTypes: true })) {
+        if (mounts.has(entry.name)) add("error", entry.name, `Local content collides with reserved subwiki mount: ${entry.name}`)
+    }
     const documents = new Map()
     const pending = []
     const routes = new Set(["#/"])
@@ -129,7 +136,7 @@ export async function validateWiki({ source = "content", site } = {}) {
     const querylessFailures = new Map()
 
     function inspect(html, file, prose, key = file) {
-        const document = inspectHTML(html, { prose })
+        const document = inspectHTML(html, { prose, ...(file === "_sidebar.md" ? { subwikiIDs: mounts } : {}) })
         documents.set(key, document)
         pending.push({ file, key, document })
         return document
@@ -142,9 +149,12 @@ export async function validateWiki({ source = "content", site } = {}) {
     for (const file of pages) {
         try {
             const route = routePath(file, extensions)
+            if (mountedRoute(route) && !mounts.has(file.split("/")[0])) {
+                add("error", file, `Local content collides with reserved subwiki mount: ${route.split("/")[0]}`)
+            }
             if (contentRequest(route, extensions).contentPath !== file) {
                 add("warning", file, `Filename is not reachable through its normal wiki route (${route}); use lowercase kebab-case Markdown filenames`)
-            } else routes.add(pageURL(file, extensions))
+            } else if (!mountedRoute(route)) routes.add(pageURL(file, extensions))
             const rendered = await runtime.render({ source: await readFile(resolve(source, file), "utf8"), path: `content/${file}`, extension: extname(file).toLowerCase(), validateStatus: !browserCustomization })
             inspect(rendered.html, file, (rendered.className || "").split(/\s+/).includes("prose"))
         } catch (cause) {
@@ -161,6 +171,9 @@ export async function validateWiki({ source = "content", site } = {}) {
         const rawPath = decodeURIComponent((queryStart < 0 ? raw : raw.slice(0, queryStart)) || config?.home || "")
         if (browserExtensions) return // Browser smoke discovers links using the actual extension registry.
         const route = routePath(rawPath, extensions)
+        // Remote mounts are intentionally opaque: do not read their content,
+        // validate remote sections, or enqueue network-dependent browser checks.
+        if (mountedRoute(route)) return
         const query = new URLSearchParams(queryStart < 0 ? "" : raw.slice(queryStart + 1))
         routes.add(`#/${route.split("/").map(encodeURIComponent).join("/")}${query.size ? `?${query}` : ""}`)
         const request = contentRequest(route, extensions)

@@ -55,6 +55,14 @@ test("sidebar categories require a direct anchor only for top-level list items",
     }
 })
 
+test("subwiki mounts require top-level links without manual children", () => {
+    const options = { prose: false, subwikiIDs: new Set(["engine"]) }
+    const link = '<a data-page="engine" href="#/engine">Engine</a>'
+    assert.deepEqual(inspectHTML(`<ul><li>${link}</li></ul>`, options).sidebarErrors, [])
+    assert.match(inspectHTML(`<ul><li>${link}<ul><li>Child</li></ul></li></ul>`, options).sidebarErrors.join(), /supplies its own navigation/)
+    assert.match(inspectHTML(`<ul><li>Parent<ul><li>${link}</li></ul></li></ul>`, options).sidebarErrors.join(), /top-level sidebar category/)
+})
+
 test("HTML parser handles unquoted attributes, void tags and omitted list closing tags", () => {
     const result = inspectHTML('<ul><li><a href=one>One</a><li><a data-page=two href=two>Two</a></ul><img src=asset.png>')
     assert.deepEqual(result.links, [{ href: "one", wiki: false }, { href: "two", wiki: true }])

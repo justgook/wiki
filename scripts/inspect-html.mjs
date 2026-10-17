@@ -20,7 +20,7 @@ function textContent(node) {
 }
 
 /** Inspect rendered HTML without executing it or resolving resource paths. */
-export function inspectHTML(html, { prose = true } = {}) {
+export function inspectHTML(html, { prose = true, subwikiIDs = new Set() } = {}) {
     const document = parseDocument(prose ? `<div class="prose">${html}</div>` : html)
     const root = prose ? document.children[0] : document
     const links = []
@@ -68,6 +68,18 @@ export function inspectHTML(html, { prose = true } = {}) {
             const children = item.children || []
             if (children.some((child) => child.name === "ul") && !children.some((child) => child.name === "a")) {
                 sidebarErrors.push("Every collapsible sidebar category must link to a content page")
+            }
+        }
+    }
+    if (!prose && subwikiIDs.size) {
+        for (const element of elements) {
+            const id = element.attribs?.["data-page"]
+            if (element.name !== "a" || !subwikiIDs.has(id)) continue
+            const item = element.parent
+            if (item?.name !== "li" || item.parent?.name !== "ul" || item.parent.parent !== root) {
+                sidebarErrors.push(`Subwiki ${id} must be a top-level sidebar category`)
+            } else if (item.children.some((child) => child.name === "ul")) {
+                sidebarErrors.push(`Subwiki ${id} supplies its own navigation; remove manual children`)
             }
         }
     }

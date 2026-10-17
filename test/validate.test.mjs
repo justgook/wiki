@@ -24,6 +24,7 @@ function run(root, ...flags) {
     return spawnSync(process.execPath, [cli.pathname, root, ...flags], { encoding: "utf8" })
 }
 const page = (body, status = "accepted") => `---\ntitle: Example\nstatus: ${status}\n---\n${body}\n`
+const subwikiConfig = (subwikis, home = "home") => `---\ntitle: Test\ndescription: Subwikis\nhome: ${home}\nsubwikis: ${JSON.stringify(subwikis)}\n---\n`
 
 test("validates a wiki without browser dependencies", async (t) => {
     const root = await fixture(t)
@@ -167,6 +168,74 @@ test("accepts directory links and canonicalizes runtime-supported hash routes", 
     const validated = await validateWiki({ source: root })
     assert.ok(validated.routes.includes("#/home"))
     assert.ok(validated.routes.every((route) => route.startsWith("#/")))
+})
+
+test("subwiki mount links and descendants stay offline and out of local smoke routes", async (t) => {
+    const root = await fixture(t, {
+        "_config.md": subwikiConfig({ engine: { url: "https://remote.invalid/wiki/" }, root: { url: "http://root.invalid/" } }),
+        "_sidebar.md": "- [[Home]]\n- [[engine|Engine docs]]\n- [[engine/guide|Guide]]\n",
+        "home.md": page("[[engine]]\n[[engine/missing#Absent]]\n[[engine/catalogue.po?entry=missing]]\n[Remote hash](#/engine/guide?section=absent)\n[External](https://remote.invalid/wiki/)\n[[root/guide]]"),
+    })
+    const { validateWiki } = await import("../scripts/validate.mjs")
+    const originalFetch = globalThis.fetch
+    let requests = 0
+    globalThis.fetch = () => { requests += 1; throw new Error("Validation must stay offline") }
+    try {
+        const result = await validateWiki({ source: root })
+        assert.deepEqual(result.diagnostics, [])
+        assert.equal(result.pages, 1)
+        assert.deepEqual(result.routes.sort(), ["#/", "#/home"])
+        assert.equal(requests, 0)
+    } finally { globalThis.fetch = originalFetch }
+    const result = run(root, "--strict")
+    assert.equal(result.status, 0, result.stdout + result.stderr)
+})
+
+test("subwiki home is remote, but similarly prefixed local routes are still checked", async (t) => {
+    const root = await fixture(t, {
+        "_config.md": subwikiConfig({ engine: { url: "http://remote.invalid/" } }, "engine/start"),
+        "home.md": page("[[engines/missing]]\n[[engine-room]]"),
+    })
+    const result = run(root)
+    assert.equal(result.status, 1, result.stdout + result.stderr)
+    assert.match(result.stdout, /Missing wiki page: engines\/missing.md/)
+    assert.match(result.stdout, /Missing wiki page: engine-room.md/)
+    assert.doesNotMatch(result.stdout, /Missing wiki page: engine\/start.md/)
+})
+
+test("rejects local files and directories occupying a subwiki mount namespace", async (t) => {
+    for (const collision of ["engine.md", "Engine.md", "engine/guide.md", "engine", "empty directory"]) {
+        await t.test(collision, async (t) => {
+            const files = { "_config.md": subwikiConfig({ engine: { url: "https://remote.invalid/" } }) }
+            if (collision !== "empty directory") files[collision] = page("Local content")
+            const root = await fixture(t, files)
+            if (collision === "empty directory") await mkdir(join(root, "engine"))
+            const result = run(root)
+            assert.equal(result.status, 1, result.stdout + result.stderr)
+            assert.match(result.stdout, /ERROR.*collides with reserved subwiki mount: engine/)
+        })
+    }
+})
+
+test("rejects malformed subwiki declarations without fetching remote config", async (t) => {
+    const invalid = [
+        null, [], "https://remote.invalid/",
+        { Engine: { url: "https://remote.invalid/" } },
+        { "engine/docs": { url: "https://remote.invalid/" } },
+        { "engine_docs": { url: "https://remote.invalid/" } },
+        { "-engine": { url: "https://remote.invalid/" } },
+        { engine: null }, { engine: [] }, { engine: "https://remote.invalid/" },
+        { engine: {} }, { engine: { url: 42 } },
+        ...["/relative/", "ftp://remote.invalid/", "https://user:pass@remote.invalid/", "https://remote.invalid/?query=1", "https://remote.invalid/#fragment"].map((url) => ({ engine: { url } })),
+    ]
+    for (const subwikis of invalid) {
+        await t.test(JSON.stringify(subwikis), async (t) => {
+            const root = await fixture(t, { "_config.md": subwikiConfig(subwikis) })
+            const result = run(root)
+            assert.equal(result.status, 1, result.stdout + result.stderr)
+            assert.match(result.stdout, /ERROR _config.md.*subwiki/i)
+        })
+    }
 })
 
 test("reports invalid config and sidebar structure independently", async (t) => {

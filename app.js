@@ -458,9 +458,9 @@ function renderMarkdown(markdown) {
 function markdownContentRenderer({ yaml, renderMarkdown, includeOptions }) {
     return {
         extensions: [".md"],
-        async render({ source, path }) {
+        async render({ source, path, baseURL }) {
             const { data, content } = parseFrontmatter(source, path, yaml)
-            const expandedContent = await expandCodeIncludes(content, path, includeOptions)
+            const expandedContent = await expandCodeIncludes(content, path, baseURL ? { ...includeOptions, baseURL } : includeOptions)
             return { data, html: renderMarkdown(expandedContent), className: "prose" }
         },
     }
@@ -524,7 +524,133 @@ function validateConfig(data) {
         }
         data.extensions.forEach(safeContentModulePath)
     }
+    validateSubwikis(data.subwikis)
     return data
+}
+
+// Mount IDs reserve a top-level route namespace; URLs name published site roots.
+function validateSubwikis(subwikis = {}) {
+    if (!subwikis || typeof subwikis !== "object" || Array.isArray(subwikis)) {
+        throw new Error("subwikis must be an object of mount IDs and site URLs")
+    }
+    for (const [id, mount] of Object.entries(subwikis)) {
+        if (!/^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/.test(id)) throw new Error(`Invalid subwiki ID: ${id}`)
+        if (!mount || typeof mount.url !== "string") throw new Error(`Subwiki ${id} requires a url`)
+        let url
+        try { url = new URL(mount.url) } catch { throw new Error(`Invalid subwiki URL: ${id}`) }
+        if (!["https:", "http:"].includes(url.protocol) || url.username || url.password || url.search || url.hash) {
+            throw new Error(`Subwiki ${id} requires an HTTP(S) site URL without credentials, query or fragment`)
+        }
+    }
+    return subwikis
+}
+
+function subwikiURL(mount) {
+    const url = new URL(mount.url)
+    url.pathname = `${url.pathname.replace(/\/+$/, "")}/`
+    return url.href
+}
+
+function mountedTarget(id, target) {
+    return `${id}/${target.replace(/^#\/?/, "")}`
+}
+
+// The child uses the same site-root-relative resource convention as a local wiki.
+// Remote HTML is trusted content, not a sandbox. No remote modules are imported.
+function rewriteMountedHTML(html, id, siteURL, page) {
+    const template = document.createElement("template")
+    template.innerHTML = html
+    template.content.querySelectorAll("a[href], [src], [poster], [srcset]").forEach((element) => {
+        for (const attribute of ["href", "src", "poster"]) {
+            const value = element.getAttribute(attribute)
+            if (!value) continue
+            if (attribute === "href" && element.matches("a")) {
+                if (element.dataset.page !== undefined || value.startsWith("#/")) {
+                    const target = mountedTarget(id, value)
+                    element.href = `#/${target}`
+                    element.dataset.page = decodeURIComponent(target.split("?")[0])
+                    continue
+                }
+                if (value.startsWith("#")) {
+                    if (!element.matches("[data-footnote-ref], [data-footnote-backref]")) {
+                        const query = new URLSearchParams()
+                        query.set("section", decodeURIComponent(value.slice(1)))
+                        element.href = `#/${id}/${page.split("?")[0]}?${query}`
+                    }
+                    continue
+                }
+                const url = new URL(value, siteURL)
+                if (url.href.startsWith(siteURL) && url.pathname === new URL(siteURL).pathname && url.hash.startsWith("#/")) {
+                    const target = mountedTarget(id, url.hash)
+                    element.href = `#/${target}`
+                    element.dataset.page = decodeURIComponent(target.split("?")[0])
+                    continue
+                }
+            }
+            if (!value.startsWith("#")) element.setAttribute(attribute, new URL(value, siteURL).href)
+        }
+        // Preserve data URLs (which can contain commas); normal image candidates
+        // use URL plus optional width/density descriptors.
+        const srcset = element.getAttribute("srcset")
+        if (srcset && !srcset.includes("data:")) {
+            element.setAttribute("srcset", srcset.split(",").map((candidate) => {
+                const [url, ...descriptor] = candidate.trim().split(/\s+/)
+                return [new URL(url, siteURL).href, ...descriptor].join(" ")
+            }).join(", "))
+        }
+    })
+    return template.innerHTML
+}
+
+const subwikiLoads = new Map()
+
+function refreshPageLinks() {
+    pageLinks = [...elements.tree.querySelectorAll("a[data-page]")]
+    pageLinks.forEach((link) => { link.dataset.filterText ||= link.textContent })
+}
+
+async function loadSubwiki(id) {
+    if (subwikiLoads.has(id)) return subwikiLoads.get(id)
+    const promise = (async () => {
+        const siteURL = subwikiURL(config.subwikis[id])
+        const raw = await fetchText(new URL("content/_config.md", siteURL).href)
+        const child = validateConfig(parseFrontmatter(raw, `${siteURL}content/_config.md`).data)
+        if (Object.keys(child.subwikis || {}).length) throw new Error("Nested subwiki mounts are not supported")
+        const markdown = await fetchText(new URL("content/_sidebar.md", siteURL).href)
+        const html = rewriteMountedHTML(renderMarkdown(markdown), id, siteURL, child.home)
+        const holder = document.createElement("div")
+        holder.innerHTML = html
+        if (!holder.querySelector("a[data-page]")) throw new Error("Subwiki sidebar must contain wiki links")
+        for (const item of elements.tree.querySelectorAll("[data-subwiki]")) {
+            if (item.dataset.subwiki !== id) continue
+            const children = item.querySelector(":scope > ul")
+            const navigation = holder.cloneNode(true)
+            children.replaceChildren(...[...navigation.querySelectorAll(":scope > ul")].flatMap((list) => [...list.children]))
+        }
+        refreshPageLinks()
+        if (elements.filter.value.trim()) elements.filter.dispatchEvent(new Event("input"))
+        return { siteURL, config: child }
+    })()
+    subwikiLoads.set(id, promise)
+    try { return await promise } catch (error) {
+        subwikiLoads.delete(id)
+        throw error
+    }
+}
+
+function showSubwikiError(item, error) {
+    const children = item.querySelector(":scope > ul")
+    const message = document.createElement("li")
+    message.textContent = `Subwiki unavailable: ${error.message} `
+    const retry = document.createElement("button")
+    retry.type = "button"
+    retry.textContent = "Retry"
+    retry.addEventListener("click", () => {
+        retry.disabled = true
+        loadSubwiki(item.dataset.subwiki).catch((error) => showSubwikiError(item, error))
+    })
+    message.append(retry)
+    children.replaceChildren(message)
 }
 
 async function loadSiteCustomization() {
@@ -1064,9 +1190,23 @@ async function loadConfig() {
 async function loadNavigation() {
     const markdown = await fetchText("content/_sidebar.md")
     elements.tree.innerHTML = renderMarkdown(markdown)
-    pageLinks = [...elements.tree.querySelectorAll("a[data-page]")]
+    refreshPageLinks()
     if (pageLinks.length === 0) throw new Error("content/_sidebar.md must contain at least one wiki link")
-    pageLinks.forEach((link) => (link.dataset.filterText = link.textContent))
+    for (const link of pageLinks) {
+        const id = link.dataset.page
+        if (!Object.hasOwn(config.subwikis || {}, id)) continue
+        const item = link.closest("li")
+        if (![...elements.tree.querySelectorAll(":scope > ul > li")].includes(item)) {
+            throw new Error(`Subwiki ${id} must be a top-level sidebar category`)
+        }
+        item.dataset.subwiki = id
+        if (item.querySelector(":scope > ul")) throw new Error(`Subwiki ${id} supplies its own navigation; remove manual children`)
+        const children = document.createElement("ul")
+        const loading = document.createElement("li")
+        loading.textContent = "Loading subwiki…"
+        children.append(loading)
+        item.append(children)
+    }
 
     elements.tree.querySelectorAll(":scope > ul > li").forEach((item) => {
         const children = item.querySelector(":scope > ul")
@@ -1086,7 +1226,10 @@ async function loadNavigation() {
         toggle.addEventListener("click", () => {
             const expanded = toggle.getAttribute("aria-expanded") === "true"
             if (expanded) setCategoryExpanded(item, false)
-            else expandOnlyCategory(item)
+            else {
+                expandOnlyCategory(item)
+                if (item.dataset.subwiki) loadSubwiki(item.dataset.subwiki).catch((error) => showSubwikiError(item, error))
+            }
         })
         item.insertBefore(toggle, children)
     })
@@ -1142,13 +1285,24 @@ async function renderRoute() {
     closeSidebar()
     elements.article.innerHTML = '<div class="loading">Loading page…</div>'
 
-    const request = contentRequest(currentPage, contentRenderers.extensions())
-    const renderer = contentRenderers.renderer(request.extension)
-    const sourcePath = `content/${request.contentPath}`
-    codeBlocks.begin(sourcePath)
+    const mountID = currentPage.split("/")[0]
+    const mount = Object.hasOwn(config.subwikis || {}, mountID) ? mountID : null
+    let sourcePath
+    let renderer
+    let remote
+    let childPage
     let source
     let rendered
     try {
+        if (mount) {
+            remote = await loadSubwiki(mount)
+            if (renderID !== routeRenderID) return
+        }
+        childPage = mount ? currentPage.slice(mount.length + 1) || routePath(remote.config.home, contentRenderers.extensions()) : currentPage
+        const request = contentRequest(childPage, contentRenderers.extensions())
+        renderer = contentRenderers.renderer(request.extension)
+        sourcePath = remote ? new URL(`content/${request.contentPath}`, remote.siteURL).href : `content/${request.contentPath}`
+        codeBlocks.begin(sourcePath)
         source = await fetchText(sourcePath)
         if (renderID !== routeRenderID) return
         rendered = validateRenderedPage(
@@ -1157,6 +1311,7 @@ async function renderRoute() {
                 path: sourcePath,
                 query: state.query,
                 helpers: rendererHelpers(),
+                baseURL: remote?.siteURL,
             }),
             sourcePath,
         )
@@ -1165,7 +1320,13 @@ async function renderRoute() {
         throw error
     }
     if (renderID !== routeRenderID) return
+    if (remote) rendered.html = rewriteMountedHTML(rendered.html, mount, remote.siteURL, childPage)
     const { data } = rendered
+    const helpers = remote ? Object.freeze({
+        ...rendererHelpers(),
+        pageURL: (target) => `#/${mountedTarget(mount, pageURL(target, contentRenderers.extensions()))}`,
+        renderMarkdown: (source) => rewriteMountedHTML(renderMarkdown(source), mount, remote.siteURL, childPage),
+    }) : rendererHelpers()
     const className = rendered.className ? ` ${rendered.className}` : ""
 
     elements.article.innerHTML = `
@@ -1174,13 +1335,14 @@ async function renderRoute() {
       <h1>${escapeHTML(data.title)}</h1>
       ${data.summary ? `<p class="summary">${escapeHTML(data.summary)}</p>` : ""}
       <span class="status status-${data.status}">${escapeHTML(data.status)}</span>
+      ${remote ? `<a class="subwiki-original" href="${escapeAttribute(new URL(`#/${childPage}${state.query.size ? `?${state.query}` : ""}`, remote.siteURL).href)}" target="_blank" rel="noopener">Open original ↗</a>` : ""}
     </header>
     <div class="content-renderer${className}">${rendered.html}</div>`
 
     setupDocumentMarkers()
     await codeBlocks.mount(elements.article, {
         path: sourcePath, query: state.query,
-        helpers: rendererHelpers(), signal: controller.signal,
+        helpers, signal: controller.signal,
     })
     if (renderID !== routeRenderID) return
     setupFootnoteNavigation()
@@ -1194,7 +1356,7 @@ async function renderRoute() {
             article: elements.article,
             path: sourcePath,
             query: state.query,
-            helpers: rendererHelpers(),
+            helpers,
         })
     }
     if (renderID === routeRenderID) elements.article.dataset.renderState = "ready"
@@ -1296,7 +1458,7 @@ function scrollToRouteLocation(behavior) {
 
 async function navigateRoute() {
     const state = routeState()
-    if (state.page === currentPage && state.contentQuery === currentContentQuery) {
+    if (state.page === currentPage && state.contentQuery === currentContentQuery && elements.article.dataset.renderState === "ready") {
         scrollToRouteLocation("smooth")
         return
     }
@@ -1391,6 +1553,11 @@ function renderFatal(error) {
       <strong>Wiki failed to load</strong>
       <code>${escapeHTML(error.message)}</code>
     </div>`
+    const retry = document.createElement("button")
+    retry.type = "button"
+    retry.textContent = "Retry"
+    retry.addEventListener("click", () => renderRoute().catch(renderFatal))
+    elements.article.firstElementChild.append(retry)
 }
 
 async function init() {
@@ -1419,6 +1586,10 @@ export {
     headingID,
     parseFrontmatter,
     validateConfig,
+    validateSubwikis,
+    subwikiURL,
+    mountedTarget,
+    rewriteMountedHTML,
     validateRenderedPage,
     pageURL,
     prepareMarkdown,

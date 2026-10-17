@@ -134,6 +134,9 @@ a:hover { text-decoration: underline; }
 .tree > ul > li.category > ul a:hover { color: var(--text); }
 .tree > ul > li.category > ul a.active { color: var(--accent); font-weight: 600; }
 /* Emphasis in navigation is semantic color: strong = accent, emphasis = secondary. */
+.tree [data-subwiki] > ul ul { margin-left: 12px; padding-left: 10px; border-left: 1px solid var(--border); }
+.subwiki-original { margin-left: 12px; font-size: .8rem; }
+
 .tree strong, .tree strong a { color: var(--accent) !important; font-weight: 700 !important; }
 .tree em, .tree em a { color: var(--secondary) !important; font-style: italic; }
 .category-toggle { grid-column: 2; grid-row: 1; display: grid; place-items: center; width: 28px; height: 28px; padding: 0; border: 0; border-radius: 5px; background: transparent; color: var(--faint); cursor: pointer; }

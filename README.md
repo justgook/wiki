@@ -11,6 +11,7 @@ The engine is designed for project wikis, living design documents, and knowledge
 - Hash-based navigation with shareable page and section links.
 - A nested, collapsible sidebar defined in Markdown, including page filtering and adjacent-page navigation.
 - `[[Wiki links]]` with optional paths and visible labels.
+- Live remote subwiki mounts for trusted public sites running the same engine.
 - YAML frontmatter with document statuses: `accepted`, `in-progress`, `todo`, and `reference`.
 - Visual markers for accepted decisions, open work, questions, missing evidence, images, diagrams, and examples.
 - Syntax-highlighted fenced code blocks and source-file includes.
@@ -72,6 +73,27 @@ export default function configure({ registerStatus, setStatuses }) {
 ```
 
 All pages (including pages from custom renderers) must use one of the resulting statuses. Status names must be lowercase ASCII letters/numbers separated by hyphens; the engine renders them as text and as a `status-NAME` CSS class. Style new statuses in `custom.css`, for example `.status-under-review { color: purple; }`. The configure function may be async. Like content renderer modules, `custom.js` is trusted code with full browser privileges; use only scripts you control.
+
+## Live remote subwikis
+
+Mount a trusted public wiki running the same engine without copying its content. In the parent's `_config.md`, add:
+
+```yaml
+subwikis:
+  engine: {url: https://example.github.io/engine-wiki/}
+```
+
+Then add a top-level mount entry to the parent's `_sidebar.md` (without manually listed children):
+
+```md
+- [[engine|Engine documentation]]
+```
+
+Use a published site-root URL, not a GitHub repository URL or a `/content/` URL. IDs must start with a lowercase letter and contain lowercase letters, digits, and single separating hyphens. The configured ID (`engine`) reserves that local route prefix; do not use it for local pages or directories. Remote pages have namespaced routes such as `#/engine/architecture`. The sidebar loads remote navigation lazily when expanded, and direct deep links work without expanding it first. Content is fetched in the browser: remote updates need no parent rebuild, although browser caching still applies. Navigation/configuration are cached for the current session; reload the parent to refresh them. A network failure is isolated to the mount and can be retried without breaking local content.
+
+Inside a mounted wiki, Markdown wiki links stay scoped to that child. Relative resource URLs resolve from the remote site root (the engine's existing convention); code includes resolve relative to the remote page. Mounted pages use the parent's theme, installed renderers, and statuses. The remote site's `custom.js`, extensions, and styles are not loaded; install any required renderers or statuses in the parent.
+
+**Trust boundary:** remote HTML is trusted content, not sandboxed or made safe for arbitrary third-party sites. Mount only sites you trust. The remote host must allow cross-origin requests (CORS); GitHub Pages typically does. Mounts are one level only: children that declare their own mounts are rejected. There is no offline availability promise for remote content and no full-text search of remote pages; sidebar filtering is navigation filtering. Offline validators skip remote content checks, so a successful local validation does not verify remote pages, links, or resources.
 
 ## Theme tokens
 
@@ -309,4 +331,4 @@ The Pages workflow builds, validates, and deploys documentation after the `relea
 
 The runtime has no package install or compilation step. `scripts/build.sh content .wiki-dist` assembles a site. Third-party browser libraries and their licenses are kept under `vendor/` so generated wikis work without CDN dependencies.
 
-Checks: `node --test test/*.test.mjs`, `bash test/build.test.sh`, and `bash test/release.test.sh`. Opt-in smoke integration tests: `WIKI_BROWSER_TEST=1 node --test test/smoke.test.mjs` (requires Playwright/Chromium). Browser color regressions: run `node scripts/serve.mjs content 8080`, then open `http://localhost:8080/test/theming.browser.html` (expect `PASS` in the title).
+Checks: `node --test test/*.test.mjs`, `bash test/build.test.sh`, and `bash test/release.test.sh`. Opt-in smoke integration tests: `WIKI_BROWSER_TEST=1 node --test test/smoke.test.mjs test/subwikis.test.mjs` (requires Playwright/Chromium). Browser color regressions: run `node scripts/serve.mjs content 8080`, then open `http://localhost:8080/test/theming.browser.html` (expect `PASS` in the title).
