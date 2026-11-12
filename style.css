@@ -627,14 +627,16 @@ a:hover {
 }
 .prose .footnotes ol {
     padding-left: 1.75rem;
-    list-style: none;
-    counter-reset: item;
 }
 .prose .footnotes li {
     padding-left: 0.3rem;
 }
 .prose .footnotes li.footnote-target {
     background: color-mix(in srgb, var(--accent) 9%, transparent);
+}
+.prose ol {
+    list-style: none;
+    counter-reset: item;
 }
 .prose ol li {
     counter-increment: item;
